@@ -1,4 +1,5 @@
 // file_explorer
+// This script provides a set of functions to interact with files and folders using the terminal.
 
 parse_params = function(params_list, names)
 	params_map = {}

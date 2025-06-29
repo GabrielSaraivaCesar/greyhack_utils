@@ -1,4 +1,6 @@
 // lib_scan
+// This script scans a computer's library for vulnerabilities.
+	
 computer = get_shell.host_computer
 
 import_code("/Tools/src/srm_lib/params.src")

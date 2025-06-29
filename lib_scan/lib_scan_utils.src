@@ -1,4 +1,6 @@
 // lib_scan_utils
+// This script provides utility functions for scanning libraries for vulnerabilities.
+	
 run_scanner = function(lib, memory_zone)
 	output = metaxploit.scan_address(lib, memory_zone)
 	vulnerabilities = output.split("\n\n")

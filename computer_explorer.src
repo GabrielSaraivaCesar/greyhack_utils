@@ -1,4 +1,6 @@
 // computer_explorer
+// This script provides a set of functions to interact with the computer using the terminal.
+
 import_code("/Tools/src/srm_lib/file_explorer.src")
 
 parse_params = function(params_list, names)

@@ -1,3 +1,6 @@
+// mem_overflow
+// This script performs a memory overflow attack on a remote or local computer.
+    
 import_code("/Tools/src/srm_lib/params.src")
 import_code("/Tools/src/srm_lib/metaxploit.src")
 import_code("/Tools/src/srm_lib/computer_explorer.src")

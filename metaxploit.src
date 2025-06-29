@@ -1,3 +1,6 @@
+// metaxploit
+// Adds metaxploit boilerplate code to the script
+
 // Load metaxploit either by using the global version or the local version
 metaxploit = include_lib("/lib/metaxploit.so")
 if not metaxploit then

@@ -1,3 +1,5 @@
+// params
+// This library provides a set of functions to handle command line parameters in GreyHack scripts.
 parsed_params_map = {}
 
 add_param = function(key, is_positional=false, is_boolean=false, description="")

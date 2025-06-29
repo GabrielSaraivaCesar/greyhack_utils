@@ -1,4 +1,6 @@
 // Wifi master cracker
+// This script allows you to crack WiFi passwords
+
 import_code("/Tools/src/srm_lib/params.src")
 
 add_param("wan_interface", true, false "The WAN interface to use for the attack")
