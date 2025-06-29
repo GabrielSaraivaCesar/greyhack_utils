@@ -50,10 +50,20 @@ if not result then exit("Program ended")
 print("The overflow resulted in ["+typeof(result)+"]")
 
 if typeof(result) == "shell" then
-	result.start_terminal // End
+    decision = user_input("Do you want to start a terminal connection? (Y/n): ")
+    if decision == "y" or decision == "Y" or decision == "" then
+        // Start terminal
+        result.start_terminal
+    else
+        print("Exiting without starting a terminal.")
+    end if
 else if typeof(result) == "file" then
+    // Handle file connection
+    print("Got file. Path: " + result.path)
 	file_connection(result)
 else if typeof(result) == "computer" then
+    // Handle computer connection
+    print("Got computer. Name: " + result.name)
 	computer_connection(result)
 else if result != 1 then
 	print("Error: expected shell, obtained: " + result)
