@@ -1,0 +1,1 @@
+This library provides a set of scripts to be used in the game GreyHack.
