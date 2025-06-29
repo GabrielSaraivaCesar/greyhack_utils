@@ -1,0 +1,25 @@
+import_code("/Tools/src/srm_lib/params.src")
+
+// Check the params, send help command
+add_param("lib_path", true, false "The path to the service library")
+add_param("command", true, false "Command to execute: install_service, start_service, stop_service")
+handle_help()
+
+p = parse_params(params, ["lib_path", "command"])
+
+service = include_lib(p.lib_path)
+result = null
+
+if p.command == "install_service" then
+	result = service.install_service
+else if p.command == "start_service" then
+	result = service.start_service
+else if p.command == "stop_service" then
+	result = service.stop_service
+else
+	print("Command is not valid")
+	exit()
+end if
+
+print(result)
+

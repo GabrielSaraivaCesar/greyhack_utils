@@ -1,0 +1,58 @@
+parsed_params_map = {}
+
+add_param = function(key, is_positional=false, is_boolean=false, description="")
+    value = ""
+    if is_positional then
+        value = params[parsed_params_list.len-1]
+    else if is_boolean then
+        value = params.indexOf(key) != null
+    else
+        idx = params.indexOf(key)
+        value = params[idx + 1]
+    end if
+    
+    parsed_params_map[key] = {"value": value, "is_positional": is_positional, "is_boolean": is_boolean, "description": description}
+end function
+
+handle_help = function()
+    positional_params = []
+    for key in parsed_params_map
+        if parsed_params_map[key].is_positional then
+            positional_params.push("[" + key + "]") // Positional parameters are shown in square brackets
+        end if
+    end for
+    message = "<b>Usage: " + program_path.split("/")[-1] + positional_params.join(" ") + " [params]</b>\nAvailable params:\n"
+    for key in parsed_params_map
+        if not parsed_params_map[key].is_positional then
+            message = message + "    " + key
+            if not parsed_params_map[key].is_boolean then
+                message = message + " (value)" // Indicate that this param requires a value
+            end if
+            if parsed_params_map[key].description != "" then
+                message = message + " - " + parsed_params_map[key].description
+            end if
+            message = message + "\n" // Add a new line for each param
+        end if
+    end for
+
+    // Validate the params
+    if params.indexOf("-h") != null or params.indexOf("--help") != null then
+        print(message)
+        exit()
+    end if
+
+    idx = 0
+    for key in parsed_params_map
+        if parsed_params_map[key].is_positional and params.len < idx + 1 then
+            // Positional parameter is missing
+            print("Error: Missing positional parameter: " + key)
+            exit()
+        else if not parsed_params_map[key].is_positional and not parsed_params_map[key].is_boolean and params.indexOf(key) != null and  params.len-1 < params.indexOf(key)+1 then
+            // Not boolean and not positional, so it requires a value
+            print("Error: Missing parameter value: " + key)
+            exit()
+        end if
+
+        idx = idx + 1
+    end for
+end function

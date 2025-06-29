@@ -1,0 +1,231 @@
+// file_explorer
+
+parse_params = function(params_list, names)
+	params_map = {}
+	for idx in range(0, names.len-1)
+		params_map[names[idx]] = params_list[idx]
+	end for
+	return params_map
+end function
+
+_allow_import = function(file)
+	return file.allow_import
+end function
+	
+_chmod = function(file, params)
+	if params.len == 1 then
+		params.push("false")
+	end if
+	params = parse_params(params, ["permissions", "isRecursive"])
+
+	return file.chmod(params.permissions, params.isRecursive == "true")
+end function
+
+_copy = function(file, params)
+	params = parse_params(params, ["path", "file_new_name"])
+	return file.copy(params.path, params.file_new_name)
+end function
+
+_delete = function(file)
+	return file.delete()
+end function
+
+_get_content = function(file)
+	return file.get_content()
+end function
+
+_get_folders = function(file)
+	output = "Folders in " + file.name + ":\n"
+	for inner_folder in file.get_folders
+		output = output + "  - " + inner_folder.name + "/\n"
+	end for
+	print(output)
+	return ""
+end function
+
+_get_files = function(file)
+	output = "Files in " + file.name + ":\n"
+	for inner_file in file.get_files
+		output = output + "  - " + inner_file.name + "\n"
+	end for
+	print(output)
+	return ""
+end function
+
+_group = function(file)
+	return file.group
+end function
+
+_has_permission = function(file, params)
+	params = parse_params(params, ["type_perm"])
+	return file.has_permission(params.type_perm)
+end function
+
+_is_binary = function(file)
+	return file.is_binary
+end function
+
+_is_folder = function(file)
+	return file.is_folder
+end function
+
+_is_symlink = function(file)
+	return file.is_symlink
+end function
+
+_move = function(file, params)
+	params = parse_params(params, ["path", "file_new_name"])
+	return file.move(params.path, params.file_new_name)
+end function
+
+_name = function(file)
+	return file.name
+end function
+
+_owner = function(file)
+	return file.owner
+end function
+
+_parent = function(file)
+	return file.parent.name
+end function
+
+_path = function(file, params)
+	if params.len == 0 then
+		params.push("false")
+	end if
+	params = parse_params(params, ["symlinkOrigPath"])
+	return file.path(params.symlinkOrigPath == "true")
+end function
+
+_permissions = function(file)
+	return file.permissions
+end function
+
+_rename = function(file, params)
+	params = parse_params(params, ["new_name"])
+	return file.rename(params.new_name)
+end function
+
+_set_content = function(file, params)
+	params = parse_params(params, ["text"])
+	return file.set_content(params.text)
+end function
+
+_set_group = function(file, params)
+	if params.len == 1 then
+		params.push("false")
+	end if
+	params = parse_params(params, ["groupname", "isRecursive"])
+	return file.set_group(params.groupname, params.isRecursive == "true")
+end function
+
+_set_owner = function(file, params)
+	if params.len == 1 then
+		params.push("false")
+	end if
+	params = parse_params(params, ["ownername", "isRecursive"])
+	return file.set_owner(params.ownername, params.isRecursive == "true")
+end function
+
+_size = function(file)
+	return file.size
+end function
+	
+_ls_file = function(folder)
+	if folder.is_folder == false then
+		return "This is not a folder."
+	end if
+	
+	inner_folders = folder.get_folders
+	inner_files = folder.get_files
+
+	output = "Folders:\n"
+	for inner_folder in inner_folders
+		output = output + "  - " + inner_folder.name + "/\n"
+	end for
+	
+	for inner_file in inner_files
+		output = output + "  - " + inner_file.name + "\n"
+	end for
+	print(output)
+	return "" 
+end function
+
+_set_symlink = function(file, params)
+	params = parse_params(params, ["path", "file_new_name"])
+	return file.symlink(params.path, params.file_new_name)
+end function
+
+_cd = function(folder, params)
+	params = parse_params(params, ["path"])
+	current_file = folder
+	if params.path == ".." then
+		if folder.parent == null then
+			return folder
+		else
+			current_file = folder.parent
+		end if
+	else
+		inner_folders = folder.get_folders
+		inner_files = folder.get_files
+
+		for inner_folder in inner_folders
+			if inner_folder.name == params.path then
+				current_file = inner_folder
+				break
+			end if
+		end for
+		for inner_file in inner_files
+			if inner_file.name == params.path then
+				current_file = inner_file
+				break
+			end if
+		end for
+	end if
+
+	return current_file
+end function
+
+file_connection = function(file)
+	// Receives a File object and allows dynamically running methods in that class from the terminal
+	while true
+		command = user_input("[File]("+file.name+") $ ").split(" ")
+		func = command[0]
+		params = command[1:]
+		output = ""
+		if func == "exit" then return
+		if func == "ls" then output = _ls_file(file)
+		if func == "allow_import" then output = _allow_import(file)
+		if func == "chmod" then output = _chmod(file, params)
+		if func == "copy" then output = _copy(file, params)
+		if func == "delete" then output = _delete(file)
+		if func == "get_content" then output = _get_content(file)
+		if func == "get_folders" then output = _get_folders(file)
+		if func == "get_files" then output = _get_files(file)
+		if func == "group" then output = _group(file)
+		if func == "has_permission" then output = _has_permission(file, params)
+		if func == "is_binary" then output = _is_binary(file)
+		if func == "is_folder" then output = _is_folder(file)
+		if func == "is_symlink" then output = _is_symlink(file)
+		if func == "move" then output = _move(file, params)
+		if func == "name" then output = _name(file)
+		if func == "owner" then output = _owner(file)
+		if func == "parent" then output = _parent(file)
+		if func == "path" then output = _path(file, params)
+		if func == "permissions" then output = _permissions(file)
+		if func == "rename" then output = _rename(file, params)
+		if func == "set_content" then output = _set_content(file, params)
+		if func == "set_group" then output = _set_group(file, params)
+		if func == "set_owner" then output = _set_owner(file, params)
+		if func == "size" then output = _size(file)
+		if func == "set_symlink" then output = _set_symlink(file, params)
+		if func == "cd" then
+			current_folder = _cd(file, params)
+			return file_connection(current_folder)
+		end if
+		
+		print(output)
+	end while
+
+end function

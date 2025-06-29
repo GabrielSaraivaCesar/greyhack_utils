@@ -1,0 +1,164 @@
+// computer_explorer
+import_code("/Tools/src/srm_lib/file_explorer.src")
+
+parse_params = function(params_list, names)
+	params_map = {}
+	for idx in range(0, names.len-1)
+		params_map[names[idx]] = params_list[idx]
+	end for
+	return params_map
+end function
+
+_active_net_card = function(computer)
+	return computer.active_net_card
+end function
+
+_ls = function(computer, params)
+	if params.len == 0 then
+		params = ["/"]
+	end if
+	params = parse_params(params, ["path"])
+	folder = computer.File(params.path)
+	inner_folders = folder.get_folders
+	inner_files = folder.get_files
+	output = "Folders:\n"
+	for inner_folder in inner_folders
+		output = output + "  - " + inner_folder.name + "/\n"
+	end for
+	
+	for inner_file in inner_files
+		output = output + "  - " + inner_file.name + "\n"
+	end for
+	print(output)
+	return "" 
+end function
+
+_change_password = function(computer, params)
+	params = parse_params(params, ["user", "password"])
+	return computer.change_password(params.user, params.password)
+end function
+
+_close_program = function(computer, params)
+	params = parse_params(params, ["pid"])
+	return computer.close_program(params.pid.to_int)
+end function
+
+_connect_ethernet = function(computer, params)
+	params = parse_params(params, ["net_device", "local_address", "gateway"])
+	return computer.connect_ethernet(params.net_device, params.local_address, params.gateway)
+end function
+
+_connect_wifi = function(computer, params)
+	params = parse_params(params, ["net_device", "bssid", "essid", "password"])
+	return computer.connect_wifi(params.net_device, params.bssid, params.essid, params.password)
+end function
+
+_create_folder = function(comuter, params)
+	params = parse_params(params, ["path", "folder_name"])
+	return computer.create_folder(params.path, params.folder_name)
+end function
+
+_create_group = function(computer, params)
+	params = parse_params(params, ["username", "groupname"])
+	return computer.create_group(params.username, params.groupname)
+end function
+
+_create_user = function(computer, params)
+	params = parse_params(params, ["user", "password"])
+	return computer.create_user(params.user, params.password)
+end function
+
+_delete_group = function(computer, params)
+	params = parse_params(params, ["username", "groupname"])
+	return computer.delete_group(params.username, params.groupname)
+end function
+
+_delete_user = function(computer, params)
+	params = parse_params(params, ["user", "password"])
+	return computer.delete_user(params.user, params.password)
+end function
+
+_get_name = function(computer)
+	return computer.get_name	
+end function
+
+_get_ports = function(computer)
+	return computer.get_ports
+end function
+
+_groups = function(computer, params)
+	params = parse_params(params, ["username"])
+	return computer.groups(params.username)
+end function
+
+_is_network_active = function(computer)
+	return computer.is_network_active
+end function
+
+_local_ip = function(computer)
+	return computer.local_ip
+end function
+
+_network_devices = function(computer)
+	return computer.network_devices
+end function
+
+_public_ip = function(computer)
+	return computer.public_ip
+end function
+
+_show_procs = function(computer)
+	return computer.show_procs
+end function
+
+_touch = function(computer, params)
+	params = parse_params(params, ["name"])
+	return computer.touch(params.path, params.name)
+end function
+
+_wifi_networks = function(computer, params)
+	params = parse_params(params, ["net_device"])
+	return computer.wifi_networks(params.net_device)
+end function
+
+_file = function(computer, params)
+	params = parse_params(params, ["path_file"])
+	file = computer.File(params.path_file)
+	return file_connection(file)
+end function
+
+computer_connection = function(computer)
+	// Receives a Computer object and allows dynamically running methods in that class from the terminal
+	while true
+		command = user_input("[Computer] $ ").split(" ")
+		func = command[0]
+		params = command[1:]
+		output = ""
+		if func == "exit" then return
+		if func == "ls" then output = _ls(computer, params)
+		if func == "active_net_card" then output = _active_net_card(computer)
+		if func == "change_password" then output = _change_password(computer, params)
+		if func == "close_program" then output = _close_program(computer, params)
+		if func == "connect_ethernet" then output = _connect_ethernet(computer, params)
+		if func == "connect_wifi" then output = _connect_wifi(computer, params)
+		if func == "create_folder" then output = _create_folder(computer, params)
+		if func == "create_group" then output = _create_group(computer, params)
+		if func == "create_user" then output = _create_user(computer, params)
+		if func == "delete_group" then output = _delete_group(computer, params)
+		if func == "delete_user" then output = _delete_user(computer, params)
+		if func == "get_name" then output = _get_name(computer)
+		if func == "get_ports" then output = _get_ports(computer)
+		if func == "groups" then output = _groups(computer, params)
+		if func == "is_network_active" then output = _is_network_active(computer)
+		if func == "local_ip" then output = _local_ip(computer)
+		if func == "network_devices" then output = _network_devices(computer)
+		if func == "public_ip" then output = _public_ip(computer)
+		if func == "show_procs" then output = _show_procs(computer)
+		if func == "touch" then output = _touch(computer, params)
+		if func == "wifi_networks" then output = _wifi_networks(computer, params)
+		if func == "file" then output = _file(computer, params)
+		
+		print(output)
+	end while
+
+end function

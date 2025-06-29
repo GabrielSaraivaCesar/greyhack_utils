@@ -1,0 +1,8 @@
+import_code("/Tools/src/srm_lib/params.src")
+
+// Check the params, send help command
+add_param("ip_address", true, false "The IP address of the remote computer")
+handle_help()
+
+router = get_router(parsed_params_map.ip_address)
+print(router.kernel_version)

@@ -1,0 +1,41 @@
+// Wifi master cracker
+import_code("/Tools/src/srm_lib/params.src")
+
+add_param("wan_interface", true, false "The WAN interface to use for the attack")
+add_param("acks", true, false "The number of ACKs to send to the target network (default: 2000)")
+handle_help()
+
+crypto = include_lib("/lib/crypto.so")
+
+interface = parsed_params_map.wan_interface
+if params.len > 0 then
+	interface = params[0]
+end if
+acks = parsed_params_map.acks
+if params.len > 1 then
+	acks = params[1].to_int
+end if
+
+// Starting monitor mode
+crypto.airmon("start", interface)
+networks = get_shell.host_computer.wifi_networks(interface)
+for index in range(0, networks.len - 1)
+   print(index + ".) " + networks[index])
+end for
+
+selectedIndex = user_input("Select Wifi: ").to_int
+if (typeof(selectedIndex) == "string" or selectedIndex < 0 or selectedIndex > networks.len - 1) then
+   exit("Wrong index!")
+end if
+
+parsed = networks[selectedIndex].split(" ")
+bssid = parsed[0]
+pwr = parsed[1][:-1].to_int
+essid = parsed[2]
+potentialAcks = acks
+crypto.aireplay(bssid, essid, potentialAcks)
+wifiPassword = crypto.aircrack(current_path + "/file.cap")
+print("Wifi password for <color=yellow>" + essid + "</color> is <color=red>" + wifiPassword+"</color>")
+
+// Stopping monitor mode
+crypto.airmon("stop", interface)

@@ -1,0 +1,60 @@
+// lib_scan_utils
+run_scanner = function(lib, memory_zone)
+	output = metaxploit.scan_address(lib, memory_zone)
+	vulnerabilities = output.split("\n\n")
+	vulnerabilities_formatted = []
+	
+	for vuln in vulnerabilities
+		var_from = vuln.indexOf("<b>")
+		var_to = vuln.indexOf("</b>")
+		if var_from == null then continue // Means it's not relevant to the actual output
+		
+		var_code = vuln[var_from:var_to]
+		var_code = "<color=yellow>"+var_code+"</color>"
+		conditions_list = []
+		
+		for line in vuln.split("\n")
+			if line.indexOf("*") != null then
+				conditions_list.push(line)
+			end if
+		end for
+		
+		vulnerabilities_formatted_str = "Unsec Value: " + var_code
+		if conditions_list.len > 0 then
+			vulnerabilities_formatted_str = vulnerabilities_formatted_str + "\n"
+			for idx in range(0, conditions_list.len-1)
+				if idx < conditions_list.len-1 then
+					conditions_list[idx] = "|- " + conditions_list[idx][2:]
+				else
+					conditions_list[idx] = "'- " + conditions_list[idx][2:]
+				end if
+			end for
+			vulnerabilities_formatted_str = vulnerabilities_formatted_str + conditions_list.join("\n")
+		end if
+		vulnerabilities_formatted.push(vulnerabilities_formatted_str)
+	end for
+	
+	output = "\n\n"+("-"*10)+"\n\n<b>Memory addr: <color=red>" + memory_zone + "</color></b>\n" + vulnerabilities_formatted.join("\n\n")
+	return output
+end function
+
+scan_lib = function(lib, should_generate_file=false)
+	memory_zones = metaxploit.scan(lib)
+
+	full_output = ""
+    for zone in memory_zones
+        full_output = full_output + run_scanner(lib, zone)
+    end for
+
+	print(full_output)
+	
+	if should_generate_file then
+		file_name = "lib_scan.txt"
+		computer.touch(current_path, file_name)
+		result_file = computer.File(file_name)
+		result_file.set_content(full_output)
+		print("Result dumped into " + file_name)
+	end if
+	
+	return full_output
+end function
