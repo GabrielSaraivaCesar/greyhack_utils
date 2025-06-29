@@ -8,12 +8,12 @@ import_code("/Tools/src/srm_lib/metaxploit.src")
 import_code("/Tools/src/srm_lib/lib_scan/lib_scan_utils.src")
 
 // Check the params, send help command
-add_param("ip_address", true, false "The IP address of the remote computer")
-add_param("port", true, false "The PORT of the remote computer's service")
+add_param("ip_address", true, false, "The IP address of the remote computer")
+add_param("port", true, false, "The PORT of the remote computer's service")
 handle_help()
 
-address = parsed_params_map.ip_address
-port = parsed_params_map.port
+address = params_map.ip_address
+port = params_map.port.to_int
 should_generate_file = params.indexOf("-o") != null or params.indexOf("--o") != null
 
 // Start connection

@@ -6,27 +6,24 @@ import_code("/Tools/src/srm_lib/metaxploit.src")
 import_code("/Tools/src/srm_lib/computer_explorer.src")
 import_code("/Tools/src/srm_lib/file_explorer.src")
 
-
-handle_help("<b>Usage: "+program_path.split("/")[-1]+" [ip_address or -l] [port or lib] [memory_zone] [unsec_value] [extra_args]</b>", 4)
-
-add_param("ip_address or -l", true, false "Either the IP address of the remote computer or the tag -l to use a local library")
-add_param("port or lib", true, false "Either the port to connect to the remote computer or the library file to use locally")
-add_param("memory_addr", true, false "The memory address to overflow")
-add_param("unsec_value", true, false "The unsecure value to write in the memory address")
-add_param("-a", false, false "The extra arguments to pass to the overflow function (optional)")
+add_param("ip_address or -l", true, false, "Either the IP address of the remote computer or the tag -l to use a local library")
+add_param("port or lib", true, false, "Either the port to connect to the remote computer or the library file to use locally")
+add_param("memory_addr", true, false, "The memory address to overflow")
+add_param("unsec_value", true, false, "The unsecure value to write in the memory address")
+add_param("-a", false, false, "The extra arguments to pass to the overflow function (optional)")
 handle_help()
 
-lib_path = parsed_params_map["port or lib"]
+lib_path = params_map["port or lib"]
 
-address =  parsed_params_map["ip_address or -l"]
+address =  params_map["ip_address or -l"]
 port = null
 if address != "-l" then
-    port = parsed_params_map["port or lib"].to_int
+    port = params_map["port or lib"].to_int
 end if
 
-memory_zone = parsed_params_map.memory_addr
-unsec_val = parsed_params_map.unsec_value
-extra_args = parsed_params_map["-a"]
+memory_zone = params_map.memory_addr
+unsec_val = params_map.unsec_value
+extra_args = params_map["-a"]
 
 metaLib = null
 
@@ -62,11 +59,11 @@ if typeof(result) == "shell" then
     end if
 else if typeof(result) == "file" then
     // Handle file connection
-    print("Got file. Path: " + result.path)
+    print("Got file. Path: " + result.path())
 	file_connection(result)
 else if typeof(result) == "computer" then
     // Handle computer connection
-    print("Got computer. Name: " + result.name)
+    print("Got computer. Name: " + result.get_name)
 	computer_connection(result)
 else if result != 1 then
 	print("Error: expected shell, obtained: " + result)

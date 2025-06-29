@@ -3,17 +3,17 @@
 
 import_code("/Tools/src/srm_lib/params.src")
 
-add_param("wan_interface", true, false "The WAN interface to use for the attack")
-add_param("acks", true, false "The number of ACKs to send to the target network (default: 2000)")
+add_param("wan_interface", true, false, "The WAN interface to use for the attack")
+add_param("acks", true, false, "The number of ACKs to send to the target network (default: 2000)")
 handle_help()
 
 crypto = include_lib("/lib/crypto.so")
 
-interface = parsed_params_map.wan_interface
+interface = params_map.wan_interface
 if params.len > 0 then
 	interface = params[0]
 end if
-acks = parsed_params_map.acks
+acks = params_map.acks
 if params.len > 1 then
 	acks = params[1].to_int
 end if

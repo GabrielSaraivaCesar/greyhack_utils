@@ -1,16 +1,21 @@
 // params
 // This library provides a set of functions to handle command line parameters in GreyHack scripts.
 parsed_params_map = {}
+params_map = {}
 
 add_param = function(key, is_positional=false, is_boolean=false, description="")
     value = ""
     if is_positional then
-        value = params[parsed_params_list.len-1]
+        if params.len > parsed_params_map.len then
+            value = params[parsed_params_map.len]
+        end if 
     else if is_boolean then
         value = params.indexOf(key) != null
     else
         idx = params.indexOf(key)
-        value = params[idx + 1]
+        if idx != null and params.len > idx + 1 then
+            value = params[idx + 1]
+        end if 
     end if
     
     parsed_params_map[key] = {"value": value, "is_positional": is_positional, "is_boolean": is_boolean, "description": description}
@@ -18,13 +23,16 @@ end function
 
 handle_help = function()
     positional_params = []
-    for key in parsed_params_map
+    for key in parsed_params_map.indexes
         if parsed_params_map[key].is_positional then
             positional_params.push("[" + key + "]") // Positional parameters are shown in square brackets
         end if
     end for
-    message = "<b>Usage: " + program_path.split("/")[-1] + positional_params.join(" ") + " [params]</b>\nAvailable params:\n"
-    for key in parsed_params_map
+    message = "<b>Usage: " + program_path.split("/")[-1] +" "+ positional_params.join(" ") + " [params]</b>\n"
+    if parsed_params_map.len - positional_params.len > 0 then
+        message = message + "Available parameters:\n"
+    end if
+    for key in parsed_params_map.indexes
         if not parsed_params_map[key].is_positional then
             message = message + "    " + key
             if not parsed_params_map[key].is_boolean then
@@ -44,7 +52,7 @@ handle_help = function()
     end if
 
     idx = 0
-    for key in parsed_params_map
+    for key in parsed_params_map.indexes
         if parsed_params_map[key].is_positional and params.len < idx + 1 then
             // Positional parameter is missing
             print("Error: Missing positional parameter: " + key)
@@ -56,5 +64,9 @@ handle_help = function()
         end if
 
         idx = idx + 1
+    end for
+
+    for key in parsed_params_map.indexes
+        params_map[key] = parsed_params_map[key].value
     end for
 end function
