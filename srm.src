@@ -1,0 +1,46 @@
+
+import_code("/Tools/src/srm_lib/lib_scan/lib_scan_utils.src")
+
+print("*********************************")
+print("*                               *")
+print("*       SRM Hacking Tool        *")
+print("*                               *")
+print("*********************************")
+
+lib_scan = function(args)
+    
+end function
+
+commands = {
+    "lib_scan", {
+        "description": "Scan a library .so file or library port for vulnerabilities.",
+        "params": ["[path OR ip:port]"],
+        "function": lib_scan
+    }
+}
+
+requst_line = function()
+    print("| ["+ current_path +"]")
+    command = user_input("'----> ").split(" ")
+    function_name = command[0]
+    args = command[1:]
+
+    if function_name in commands then
+        command_info = commands[function_name]
+        if args.len != command_info.params.len then
+            print("Error: Invalid number of parameters for " + function_name)
+            print("Usage: " + function_name + " " + " ".join(command_info.params.join(" ")))
+        else
+            result = command_info.function(args)
+            if result != "" then
+                print(result)
+            end if
+        end if
+    else
+        print("Error: Command '" + function_name + "' not found.")
+    end if
+end function
+
+while true
+    requst_line()
+end while

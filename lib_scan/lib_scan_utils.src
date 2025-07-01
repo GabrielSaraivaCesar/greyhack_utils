@@ -1,6 +1,7 @@
 // lib_scan_utils
 // This script provides utility functions for scanning libraries for vulnerabilities.
-	
+vuln_data = []
+
 run_scanner = function(lib, memory_zone)
 	output = metaxploit.scan_address(lib, memory_zone)
 	vulnerabilities = output.split("\n\n")
@@ -11,8 +12,8 @@ run_scanner = function(lib, memory_zone)
 		var_to = vuln.indexOf("</b>")
 		if var_from == null then continue // Means it's not relevant to the actual output
 		
-		var_code = vuln[var_from:var_to]
-		var_code = "<color=yellow>"+var_code+"</color>"
+		var_code_value = vuln[var_from+3:var_to]
+		var_code = "<color=yellow>"+var_code_value+"</color>"
 		conditions_list = []
 		
 		for line in vuln.split("\n")
@@ -20,6 +21,7 @@ run_scanner = function(lib, memory_zone)
 				conditions_list.push(line)
 			end if
 		end for
+
 		
 		vulnerabilities_formatted_str = "Unsec Value: " + var_code
 		if conditions_list.len > 0 then
@@ -34,20 +36,60 @@ run_scanner = function(lib, memory_zone)
 			vulnerabilities_formatted_str = vulnerabilities_formatted_str + conditions_list.join("\n")
 		end if
 		vulnerabilities_formatted.push(vulnerabilities_formatted_str)
+
+		make_vuln_data_row(lib, memory_zone, var_code_value, conditions_list.join("{newline_slot}"), "", "")
 	end for
 	
 	output = "\n\n"+("-"*10)+"\n\n<b>Memory addr: <color=red>" + memory_zone + "</color></b>\n" + vulnerabilities_formatted.join("\n\n")
-	return output
+end function
+
+get_cached_vuln_data_str = function(lib)
+
+	all_rows = []
+	for row in vuln_data
+		if row.lib == lib.lib_name+"v"+lib.version then
+			all_rows.push(row)
+		end if
+	end for
+
+	full_str = "\nMEMORY_ADDR UNSEC_VALUE ACCESS_TYPE ACCESS_LEVEL"
+	last_memory_zone = ""
+	for row in all_rows
+		access_type = row.type
+		access_level = row.access_level
+		if access_type == "" then
+			access_type = "Unknown"
+		end if
+		if access_level == "" then
+			access_level = "Unknown"
+		end if
+		new_line = "\n<color=red>" + row.memory_zone + "</color> <color=yellow>" + row.unsec_val + "</color> " + access_type + " " + access_level
+		
+		if last_memory_zone != "" and row.memory_zone != last_memory_zone then
+			new_line = "\n" + new_line // Add a new line if the memory zone changed
+		end if
+
+		new_line = format_columns(new_line)
+		if row.conditions != "" then
+			new_line = new_line + row.conditions.trim().replace("{quote_slot}", ",").replace("{newline_slot}", "\n")
+		end if
+		
+		full_str = full_str + new_line
+		last_memory_zone = row.memory_zone
+	end for
+
+	return full_str
 end function
 
 scan_lib = function(lib, should_generate_file=false)
 	memory_zones = metaxploit.scan(lib)
 
-	full_output = ""
     for zone in memory_zones
-        full_output = full_output + run_scanner(lib, zone)
+        run_scanner(lib, zone)
     end for
 
+	_fill_vuln_data() // Ensure the vuln_data is filled before printing
+	full_output = get_cached_vuln_data_str(lib)
 	print(full_output)
 	
 	if should_generate_file then
@@ -59,4 +101,108 @@ scan_lib = function(lib, should_generate_file=false)
 	end if
 	
 	return full_output
+end function
+
+_fill_vuln_data = function()
+	vuln_data = []
+	data_file = get_shell.host_computer.File("/Tools/src/srm_lib/vuln_data.csv")
+	if data_file == null then return
+
+	lines = data_file.get_content.split("{separator_slot}")
+	if lines.len <= 1 then return
+
+	for line in lines[1:] // Skip header
+		parts = line.split(",")
+		if parts.len < 6 then continue // Invalid line
+		conditions = parts[3].replace("{quote_slot}", ",").split("{newline_slot}")
+		for i in range(0, conditions.len-1)
+			conditions[i] = "\n<color=#bdbdbd>"+conditions[i].trim()+"</color>"
+		end for
+		row = {
+			"lib": parts[0].trim(),
+			"memory_zone": parts[1].trim(),
+			"unsec_val": parts[2].trim(),
+			"conditions": conditions.join(""),
+			"type": parts[4].trim(),
+			"access_level": parts[5].trim(),
+		}
+		vuln_data.push(row)
+	end for
+end function
+_fill_vuln_data()
+
+save_vuln_data = function()
+	data_file = get_shell.host_computer.File("/Tools/src/srm_lib/vuln_data.csv")
+	if data_file == null then return
+
+	output = "lib,memory_zone,unsec_val,conditions,type,access_level{separator_slot}"
+	for row in vuln_data
+		output = output + row.lib + "," + row.memory_zone + "," + row.unsec_val + "," + row.conditions + "," + row.type + "," + row.access_level + "{separator_slot}"
+	end for
+	data_file.set_content(output)
+end function
+
+find_vuln_data_index_by_lib = function(metaLib, memory_zone, unsec_val)
+	if vuln_data.len == 0 then
+		return -1
+	end if
+	for i in range(0, vuln_data.len-1)
+		if vuln_data[i].lib == metaLib.lib_name+"v"+metaLib.version and vuln_data[i].memory_zone == memory_zone and vuln_data[i].unsec_val == unsec_val then
+			return i
+		end if
+	end for
+	return -1 // Not found
+end function
+
+find_vuln_data = function(metaLib, memory_zone, unsec_val)
+	index = find_vuln_data_index_by_lib(metaLib, memory_zone, unsec_val)
+	if index == -1 then return null
+	
+	return vuln_data[index]
+end function
+
+make_vuln_data_row = function(metaLib, memory_zone, unsec_val, conditions="", access_type="", access_level="")
+
+	// First try to find the vulnerability
+	vuln_index = find_vuln_data_index_by_lib(metaLib, memory_zone, unsec_val)
+	old_row = {
+		"lib": "",
+		"memory_zone": "",
+		"unsec_val": "",
+		"type": "",
+		"access_level": "",
+		"conditions": "",
+	}
+	if vuln_index != -1 then 
+		old_row = vuln_data[vuln_index]
+	end if
+
+	row = {
+		"lib": metaLib.lib_name+"v"+metaLib.version,
+		"memory_zone": memory_zone,
+		"unsec_val": unsec_val,
+		"type": access_type,
+		"access_level": access_level,
+		"conditions": conditions,
+	}
+
+	// Merge rows
+	if row.lib != "" then old_row.lib = row.lib
+	if row.memory_zone != "" then old_row.memory_zone = row.memory_zone
+	if row.unsec_val != "" then old_row.unsec_val = row.unsec_val
+	if row.type != "" then old_row.type = row.type
+	if row.access_level != "" then old_row.access_level = row.access_level
+	if row.conditions != "" then old_row.conditions = row.conditions
+
+	old_row.conditions = old_row.conditions.trim().replace(",", "{quote_slot}").replace("\n", "{newline_slot}")
+
+	if vuln_index != -1 then
+		vuln_data[vuln_index] = old_row // Update existing row
+	else
+		vuln_data.push(old_row) // Add new row
+	end if
+
+	save_vuln_data()
+
+	return old_row
 end function

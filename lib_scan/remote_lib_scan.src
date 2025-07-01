@@ -10,11 +10,14 @@ import_code("/Tools/src/srm_lib/lib_scan/lib_scan_utils.src")
 // Check the params, send help command
 add_param("ip_address", true, false, "The IP address of the remote computer")
 add_param("port", true, false, "The PORT of the remote computer's service")
+add_param("-o", false, true, "Generate output file with the scan results")
+add_param("-c", false, true, "Use the vulnerability database to check for already known vulnerabilities")
+add_param("--cache", false, true, "Use the vulnerability database to check for already known vulnerabilities")
 handle_help()
 
 address = params_map.ip_address
 port = params_map.port.to_int
-should_generate_file = params.indexOf("-o") != null or params.indexOf("--o") != null
+should_generate_file = params_map["-o"] == true
 
 // Start connection
 net_session = metaxploit.net_use(address, port)
@@ -22,4 +25,10 @@ if not net_session then exit("Error: can't connect to net session")
 
 // Use metaxploit to overflow a specific memory address
 lib = net_session.dump_lib
-scan_lib(lib, should_generate_file)
+
+
+if params_map["-c"] == true or params_map["--cache"] == true then
+	print(get_cached_vuln_data_str(lib))
+else
+	scan_lib(lib, should_generate_file)
+end if

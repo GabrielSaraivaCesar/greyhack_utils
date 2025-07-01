@@ -5,6 +5,7 @@ import_code("/Tools/src/srm_lib/params.src")
 import_code("/Tools/src/srm_lib/metaxploit.src")
 import_code("/Tools/src/srm_lib/computer_explorer.src")
 import_code("/Tools/src/srm_lib/file_explorer.src")
+import_code("/Tools/src/srm_lib/lib_scan/lib_scan_utils.src")
 
 add_param("ip_address or -l", true, false, "Either the IP address of the remote computer or the tag -l to use a local library")
 add_param("port or lib", true, false, "Either the port to connect to the remote computer or the library file to use locally")
@@ -13,20 +14,19 @@ add_param("unsec_value", true, false, "The unsecure value to write in the memory
 add_param("-a", false, false, "The extra arguments to pass to the overflow function (optional)")
 handle_help()
 
+// Parse parameters
 lib_path = params_map["port or lib"]
-
 address =  params_map["ip_address or -l"]
 port = null
 if address != "-l" then
     port = params_map["port or lib"].to_int
 end if
-
 memory_zone = params_map.memory_addr
 unsec_val = params_map.unsec_value
 extra_args = params_map["-a"]
 
-metaLib = null
 
+metaLib = null
 // Start connection
 if params.indexOf("-l") == null then
 	// Remote use
@@ -48,6 +48,30 @@ result = metaLib.overflow(memory_zone, unsec_val, extra_args)
 
 if not result then exit("Program ended")
 print("The overflow resulted in ["+typeof(result)+"]")
+
+if typeof(result) == "shell" or typeof(result) == "file" or typeof(result) == "computer" then
+	old_vuln_data = find_vuln_data(metaLib, memory_zone, unsec_val)
+	access_level = ""
+
+	if old_vuln_data != null then
+		access_level = old_vuln_data.access_level
+	end if
+
+	if access_level == "" then
+		print()
+		access_level_in = user_input("Please manually update the access level for this vulnerability in the database (""r""/""root"")/(""u""/""user"")/(""g""/""guest""): ").upper
+		if access_level_in == "R" or access_level_in == "ROOT" then
+			access_level = "root"
+		else if access_level_in == "U" or access_level_in == "USER" then
+			access_level = "user"
+		else if access_level_in == "G" or access_level_in == "GUEST" then
+			access_level = "guest"
+		else
+			exit("Invalid access level input. Exiting.")
+		end if
+	end if
+	make_vuln_data_row(metaLib, memory_zone, unsec_val, "", typeof(result), access_level)
+end if
 
 if typeof(result) == "shell" then
     decision = user_input("Do you want to start a terminal connection? (Y/n): ")

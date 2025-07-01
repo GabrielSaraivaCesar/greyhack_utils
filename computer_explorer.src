@@ -1,164 +1,351 @@
 // computer_explorer
 // This script provides a set of functions to interact with the computer using the terminal.
 
-import_code("/Tools/src/srm_lib/file_explorer.src")
-
-parse_params = function(params_list, names)
-	params_map = {}
+parse_params_list = function(params_list, names)
+	params_list_map = {}
 	for idx in range(0, names.len-1)
-		params_map[names[idx]] = params_list[idx]
+		params_list_map[names[idx]] = params_list[idx]
 	end for
-	return params_map
+	return params_list_map
 end function
 
-_active_net_card = function(computer)
+_active_net_card = function(computer, params_list)
 	return computer.active_net_card
 end function
 
-_ls = function(computer, params)
-	if params.len == 0 then
-		params = ["/"]
+_ls_computer = function(computer, params_list)
+	if params_list.len == 0 then
+		params_list = ["/"]
 	end if
-	params = parse_params(params, ["path"])
-	folder = computer.File(params.path)
+	params_list = parse_params_list(params_list, ["path"])
+	folder = computer.File(params_list.path)
 	inner_folders = folder.get_folders
 	inner_files = folder.get_files
 	output = "Folders:\n"
-	for inner_folder in inner_folders
-		output = output + "  - " + inner_folder.name + "/\n"
-	end for
+
+	if inner_folders.len > 0 then
+		for inner_folder in inner_folders
+			r = "<color=green>R</color>"
+			w = "<color=green>W</color>"
+			x = "<color=green>X</color>"
+			if inner_folder.has_permission("r") == false then r = "<color=red>R</color>"
+			if inner_folder.has_permission("w") == false then w = "<color=red>W</color>"
+			if inner_folder.has_permission("x") == false then x = "<color=red>X</color>"
+			permissions_str = r + w + x
+
+			output = output + "  - <b>" + inner_folder.name + "</b>/ "+permissions_str+"\n"
+		end for
+	end if
 	
-	for inner_file in inner_files
-		output = output + "  - " + inner_file.name + "\n"
-	end for
+	if inner_files.len > 0 then
+		for inner_file in inner_files
+			r = "<color=green>R</color>"
+			w = "<color=green>W</color>"
+			x = "<color=green>X</color>"
+			if inner_file.has_permission("r") == false then r = "<color=red>R</color>"
+			if inner_file.has_permission("w") == false then w = "<color=red>W</color>"
+			if inner_file.has_permission("x") == false then x = "<color=red>X</color>"
+			permissions_str = r + w + x
+
+			output = output + "  - <b>" + inner_file.name + "</b> "+permissions_str+"\n"
+		end for
+	end if
+
 	print(output)
 	return "" 
 end function
 
-_change_password = function(computer, params)
-	params = parse_params(params, ["user", "password"])
-	return computer.change_password(params.user, params.password)
+_change_password = function(computer, params_list)
+	params_list = parse_params_list(params_list, ["user", "password"])
+	return computer.change_password(params_list.user, params_list.password)
 end function
 
-_close_program = function(computer, params)
-	params = parse_params(params, ["pid"])
-	return computer.close_program(params.pid.to_int)
+_close_program = function(computer, params_list)
+	params_list = parse_params_list(params_list, ["pid"])
+	return computer.close_program(params_list.pid.to_int)
 end function
 
-_connect_ethernet = function(computer, params)
-	params = parse_params(params, ["net_device", "local_address", "gateway"])
-	return computer.connect_ethernet(params.net_device, params.local_address, params.gateway)
+_connect_ethernet = function(computer, params_list)
+	params_list = parse_params_list(params_list, ["net_device", "local_address", "gateway"])
+	return computer.connect_ethernet(params_list.net_device, params_list.local_address, params_list.gateway)
 end function
 
-_connect_wifi = function(computer, params)
-	params = parse_params(params, ["net_device", "bssid", "essid", "password"])
-	return computer.connect_wifi(params.net_device, params.bssid, params.essid, params.password)
+_connect_wifi = function(computer, params_list)
+	params_list = parse_params_list(params_list, ["net_device", "bssid", "essid", "password"])
+	return computer.connect_wifi(params_list.net_device, params_list.bssid, params_list.essid, params_list.password)
 end function
 
-_create_folder = function(comuter, params)
-	params = parse_params(params, ["path", "folder_name"])
-	return computer.create_folder(params.path, params.folder_name)
+_create_folder = function(comuter, params_list)
+	params_list = parse_params_list(params_list, ["path", "folder_name"])
+	return computer.create_folder(params_list.path, params_list.folder_name)
 end function
 
-_create_group = function(computer, params)
-	params = parse_params(params, ["username", "groupname"])
-	return computer.create_group(params.username, params.groupname)
+_create_group = function(computer, params_list)
+	params_list = parse_params_list(params_list, ["username", "groupname"])
+	return computer.create_group(params_list.username, params_list.groupname)
 end function
 
-_create_user = function(computer, params)
-	params = parse_params(params, ["user", "password"])
-	return computer.create_user(params.user, params.password)
+_create_user = function(computer, params_list)
+	params_list = parse_params_list(params_list, ["user", "password"])
+	return computer.create_user(params_list.user, params_list.password)
 end function
 
-_delete_group = function(computer, params)
-	params = parse_params(params, ["username", "groupname"])
-	return computer.delete_group(params.username, params.groupname)
+_delete_group = function(computer, params_list)
+	params_list = parse_params_list(params_list, ["username", "groupname"])
+	return computer.delete_group(params_list.username, params_list.groupname)
 end function
 
-_delete_user = function(computer, params)
-	params = parse_params(params, ["user", "password"])
-	return computer.delete_user(params.user, params.password)
+_delete_user = function(computer, params_list)
+	params_list = parse_params_list(params_list, ["user", "password"])
+	return computer.delete_user(params_list.user, params_list.password)
 end function
 
-_get_name = function(computer)
+_get_name = function(computer, params_list)
 	return computer.get_name	
 end function
 
-_get_ports = function(computer)
+_get_ports = function(computer, params_list)
 	return computer.get_ports
 end function
 
-_groups = function(computer, params)
-	params = parse_params(params, ["username"])
-	return computer.groups(params.username)
+_groups = function(computer, params_list)
+	params_list = parse_params_list(params_list, ["username"])
+	return computer.groups(params_list.username)
 end function
 
-_is_network_active = function(computer)
+_is_network_active = function(computer, params_list)
 	return computer.is_network_active
 end function
 
-_local_ip = function(computer)
+_local_ip = function(computer, params_list)
 	return computer.local_ip
 end function
 
-_network_devices = function(computer)
+_network_devices = function(computer, params_list)
 	return computer.network_devices
 end function
 
-_public_ip = function(computer)
+_public_ip = function(computer, params_list)
 	return computer.public_ip
 end function
 
-_show_procs = function(computer)
+_show_procs = function(computer, params_list)
 	return computer.show_procs
 end function
 
-_touch = function(computer, params)
-	params = parse_params(params, ["name"])
-	return computer.touch(params.path, params.name)
+_touch = function(computer, params_list)
+	params_list = parse_params_list(params_list, ["name"])
+	return computer.touch(params_list.path, params_list.name)
 end function
 
-_wifi_networks = function(computer, params)
-	params = parse_params(params, ["net_device"])
-	return computer.wifi_networks(params.net_device)
+_wifi_networks = function(computer, params_list)
+	params_list = parse_params_list(params_list, ["net_device"])
+	return computer.wifi_networks(params_list.net_device)
 end function
 
-_file = function(computer, params)
-	params = parse_params(params, ["path_file"])
-	file = computer.File(params.path_file)
+_file = function(computer, params_list)
+	params_list = parse_params_list(params_list, ["path_file"])
+	file = computer.File(params_list.path_file)
 	return file_connection(file)
 end function
+
+
+
+commands = {
+	"ls": {
+		"description": "List files and folders in a directory.",
+		"params_list": ["[path]"],
+		"func": "_ls_computer",
+	},
+	"active_net_card": {
+		"description": "Get the active network card.",
+		"params_list": [],
+		"func": "_active_net_card",
+	},
+	"change_password": {
+		"description": "Change a user's password.",
+		"params_list": ["[user]", "[password]"],
+		"func": "_change_password",
+	},
+	"close_program": {
+		"description": "Close a program by its PID.",
+		"params_list": ["[pid]"],
+		"func": "_close_program",
+	},
+	"connect_ethernet": {
+		"description": "Connect to an Ethernet network.",
+		"params_list": ["[net_device]", "[local_address]", "[gateway]"],
+		"func": "_connect_ethernet",
+	},
+	"connect_wifi": {
+		"description": "Connect to a Wi-Fi network.",
+		"params_list": ["[net_device]", "[bssid]", "[essid]", "[password]"],
+		"func": "_connect_wifi",
+	},
+	"create_folder": {
+		"description": "Create a folder in a specified path.",
+		"params_list": ["[path]", "[folder_name]"],
+		"func": "_create_folder",
+	},
+	"create_group": {
+		"description": "Create a group for a user.",
+		"params_list": ["[username]", "[groupname]"],
+		"func": "_create_group",
+	},
+	"create_user": {
+		"description": "Create a new user with a password.",
+		"params_list": ["[user]", "[password]"],
+		"func": "_create_user",
+	},
+	"delete_group": {
+		"description": "Delete a group for a user.",
+		"params_list": ["[username]", "[groupname]"],
+		"func": "_delete_group",
+	},
+	"delete_user": {
+		"description": "Delete a user with a password.",
+		"params_list": ["[user]", "[password]"],
+		"func": "_delete_user",
+	},
+	"get_name": {
+		"description": "Get the name of the computer.",
+		"params_list": [],
+		"func": "_get_name",
+	},
+	"get_ports": {
+		"description": "Get the list of ports on the computer.",
+		"params_list": [],
+		"func": "_get_ports",
+	},
+	"groups": {
+		"description": "Get the groups of a user.",
+		"params_list": ["[username]"],
+		"func": "_groups",
+	},
+	"is_network_active": {
+		"description": "Check if the network is active.",
+		"params_list": [],
+		"func": "_is_network_active",
+	},
+	"local_ip": {
+		"description": "Get the local IP address of the computer.",
+		"params_list": [],
+		"func": "_local_ip",
+	},
+	"network_devices": {
+		"description": "Get the list of network devices.",
+		"params_list": [],
+		"func": "_network_devices",
+	},
+	"public_ip": {
+		"description": "Get the public IP address of the computer.",
+		"params_list": [],
+		"func": "_public_ip",
+	},
+	"show_procs": {
+		"description": "Show the running processes on the computer.",
+		"params_list": [],
+		"func": "_show_procs",
+	},
+	"touch": {
+		"description": "Create a new file or update the timestamp of an existing file.",
+		"params_list": ["[path]", "[name]"],
+		"func": "_touch",
+	},
+	"wifi_networks": {
+		"description": "Get the list of available Wi-Fi networks.",
+		"params_list": ["[net_device]"],
+		"func": "_wifi_networks",
+	},
+	"file": {
+		"description": "Interact with a file on the computer.",
+		"params_list": ["[path_file]"],
+		"func": "_file",
+	},
+}
+
+extra_commands = {
+	"exit": {
+		"description": "Exit the file connection.",
+		"params_list": [],
+	},
+	"help": {
+		"description": "Show this help message.",
+		"params_list": [],
+	},
+	"h": {
+		"description": "Show this help message.",
+		"params_list": [],
+	},
+}
+
+_help = function(computer, params_list)
+	output = "Available commands:\n"
+	for cmd in commands.indexes
+		output = output + "  - " + cmd + " " + commands[cmd].params_list.join(" ") + ": " + commands[cmd].description + "\n"
+	end for
+	for cmd in extra_commands.indexes
+		output = output + "  - " + cmd + " " + commands[cmd].params_list.join(" ") + ": " + commands[cmd].description + "\n"
+	end for
+	return output
+end function
+
+
+str_to_function = function(str, computer, params_list)
+	// Converts a string to a function reference
+	if str == "_active_net_card" then return _active_net_card(computer, params_list)
+	if str == "_ls_computer" then return _ls_computer(computer, params_list)
+	if str == "_change_password" then return _change_password(computer, params_list)
+	if str == "_close_program" then return _close_program(computer, params_list)
+	if str == "_connect_ethernet" then return _connect_ethernet(computer, params_list)
+	if str == "_connect_wifi" then return _connect_wifi(computer, params_list)
+	if str == "_create_folder" then return _create_folder(computer, params_list)
+	if str == "_create_group" then return _create_group(computer, params_list)
+	if str == "_create_user" then return _create_user(computer, params_list)
+	if str == "_delete_group" then return _delete_group(computer, params_list)
+	if str == "_delete_user" then return _delete_user(computer, params_list)
+	if str == "_get_name" then return _get_name(computer, params_list)
+	if str == "_get_ports" then return _get_ports(computer, params_list)
+	if str == "_groups" then return _groups(computer, params_list)
+	if str == "_is_network_active" then return _is_network_active(computer, params_list)
+	if str == "_local_ip" then return _local_ip(computer, params_list)
+	if str == "_network_devices" then return _network_devices(computer, params_list)
+	if str == "_public_ip" then return _public_ip(computer, params_list)
+	if str == "_show_procs" then return _show_procs(computer, params_list)
+	if str == "_touch" then return _touch(computer, params_list)
+	if str == "_wifi_networks" then return _wifi_networks(computer, params_list)
+	if str == "_file" then return _file(computer, params_list)
+
+	return null // If no match found, returns null
+end function
+
 
 computer_connection = function(computer)
 	// Receives a Computer object and allows dynamically running methods in that class from the terminal
 	while true
-		command = user_input("[Computer] $ ").split(" ")
+		command = get_user_input(null, ["[<b><color=purple>Computer</color></b>]"]).split(" ")
+
 		func = command[0]
-		params = command[1:]
+		params_list = command[1:]
 		output = ""
+
 		if func == "exit" then return
-		if func == "ls" then output = _ls(computer, params)
-		if func == "active_net_card" then output = _active_net_card(computer)
-		if func == "change_password" then output = _change_password(computer, params)
-		if func == "close_program" then output = _close_program(computer, params)
-		if func == "connect_ethernet" then output = _connect_ethernet(computer, params)
-		if func == "connect_wifi" then output = _connect_wifi(computer, params)
-		if func == "create_folder" then output = _create_folder(computer, params)
-		if func == "create_group" then output = _create_group(computer, params)
-		if func == "create_user" then output = _create_user(computer, params)
-		if func == "delete_group" then output = _delete_group(computer, params)
-		if func == "delete_user" then output = _delete_user(computer, params)
-		if func == "get_name" then output = _get_name(computer)
-		if func == "get_ports" then output = _get_ports(computer)
-		if func == "groups" then output = _groups(computer, params)
-		if func == "is_network_active" then output = _is_network_active(computer)
-		if func == "local_ip" then output = _local_ip(computer)
-		if func == "network_devices" then output = _network_devices(computer)
-		if func == "public_ip" then output = _public_ip(computer)
-		if func == "show_procs" then output = _show_procs(computer)
-		if func == "touch" then output = _touch(computer, params)
-		if func == "wifi_networks" then output = _wifi_networks(computer, params)
-		if func == "file" then output = _file(computer, params)
+		if func == "help" or func == "h" then
+			output = _help(file, params_list)
+			print(output)
+			continue
+		end if
+
+		if commands.hasIndex(func) then
+			command_info = commands[func]
+			if params_list.len != command_info.params_list.len then
+				output = "Error: Invalid number of parameters for " + func + "\nUsage: " + func + " " + command_info.params_list.join(" ")
+			else
+				output = str_to_function(command_info.func, computer, params_list)
+			end if
+		else if not extra_commands.hasIndex(func) then
+			output = "Error: Command '" + func + "' not found."
+		end if
 		
 		print(output)
 	end while
