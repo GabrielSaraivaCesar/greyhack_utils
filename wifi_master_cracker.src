@@ -1,11 +1,16 @@
 // Wifi master cracker
 // This script allows you to crack WiFi passwords
 
-import_code("/Tools/src/srm_lib/params.src")
+import_code("/Tools/src/crash_lib/utils/argparse.src")
 
-add_param("wan_interface", true, false, "The WAN interface to use for the attack")
-add_param("acks", true, false, "The number of ACKs to send to the target network (default: 2000)")
-handle_help()
+params_definition = [
+	{"name": "wan_interface", "flag":null, "flag_alt": null, "type":"str",  "default":null,}, 
+	{"name": "acks", "flag":null, "flag_alt": null, "type":"str",  "default":null,}, 
+]
+
+params_map = parse_args(params, params_definition)
+handle_help(params, params_definition, "Scan remote library for vulnerabilities")
+
 
 crypto = include_lib("/lib/crypto.so")
 

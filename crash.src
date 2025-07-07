@@ -1,0 +1,70 @@
+
+import_code("/Tools/src/crash_lib/lib_scan/lib_scan_utils.src")
+import_code("/Tools/src/crash_lib/utils/crash_utils.src")
+import_code("/Tools/src/crash_lib/utils/argparse.src")
+import_code("/Tools/src/crash_lib/utils/metaxploit.src")
+
+import_code("/Tools/src/crash_lib/crash_functions/lib_scan.src")
+import_code("/Tools/src/crash_lib/crash_functions/mem_overflow.src")
+import_code("/Tools/src/crash_lib/utils/computer_explorer.src")
+import_code("/Tools/src/crash_lib/utils/file_explorer.src")
+crypto = include_lib("/lib/crypto.so")
+
+print("*******************************************")
+print("*                                         *")
+print("*                C.R.A.S.H                *") 
+print("* Command & Recon Automated Shell Handler *")
+print("*                                         *")
+print("*******************************************")
+
+_crash_help = function(args)
+    print("C.R.A.S.H - Command & Recon Automated Shell Handler")
+    print("Available commands:")
+    for cmd in commands.indexes 
+        print("- <b>" + cmd + "</b>: <color=#bdbdbd>" + commands[cmd].description + "</color>")
+    end for
+end function
+
+commands = {
+    "exit": {
+        "description": "Exit the C.R.A.S.H shell.",
+        "func": @exit,
+    },
+    "help": {
+        "description": "Show this help message.",
+        "func": @_crash_help,
+    },
+    "lib_scan": {
+        "description": "Scan a library .so file or library port for vulnerabilities.",
+        "func": @lib_scan,
+    },
+    "remote_lib_scan": {
+        "description": "Remotely scan a library .so file or library port for vulnerabilities.",
+        "func": @remote_lib_scan,
+    },
+    "mem_overflow": {
+        "description": "Executes a memory overflow attack and opens a dynamic handler for the attack result.",
+        "func": @mem_overflow,
+    },
+}
+
+
+requst_line = function()
+    command = get_user_input(null, []).split(" ")
+    function_name = command[0]
+    args = command[1:]
+    if commands.indexes.indexOf(function_name) != null then
+        command_info = commands[function_name]
+    
+        result = command_info.func(args)
+        if result != "" then
+            print(result)
+        end if
+    else
+        print("Error: Command '" + function_name + "' not found. Run 'help' to see available commands.")
+    end if
+end function
+
+while true
+    requst_line()
+end while

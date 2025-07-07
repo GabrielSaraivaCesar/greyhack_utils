@@ -1,0 +1,1768 @@
+CRASH-FILE-DELIMITERcompile_crash.src
+compile_ignore = [
+    "readme.md",
+    "computer_explorer.src",
+    "file_explorer.src",
+    "crash_utils.src",
+    "metaxploit.src",
+    "argparse.src",
+    "params.src",
+    "lib_scan_utils.src",
+    "crash_functions",
+    "script_separate.src",
+]
+
+shell = get_shell
+computer = shell.host_computer
+master_folder = computer.File("/Tools/src/crash_lib/")
+
+compile_all_src_in_folder = function(folder)
+    inner_folders = folder.get_folders
+    inner_files = folder.get_files
+    for file in inner_files
+        if compile_ignore.indexOf(file.name) != null then
+            continue // Skip files that are in the ignore list
+        end if
+        
+        if file.name.indexOf(".src") != null then
+            print("Compiling " + file.path + "...")
+
+            f = computer.File("/Tools/custom_bin/"+file.name.replace(".src", ""))
+            if f != null then
+                f.delete()
+            end if
+            result = shell.build(file.path, "/Tools/custom_bin/")
+            if result != "" then
+                exit("Error compiling " + file.path + ": " + result)
+            end if
+        end if
+    end for
+    for inner_folder in inner_folders
+        if compile_ignore.indexOf(inner_folder.name) != null then
+            continue // Skip folders that are in the ignore list
+        end if
+        compile_all_src_in_folder(inner_folder)
+    end for
+end function
+
+compile_all_src_in_folder(master_folder)
+CRASH-FILE-DELIMITERcrash.src
+
+import_code("/Tools/src/crash_lib/lib_scan/lib_scan_utils.src")
+import_code("/Tools/src/crash_lib/utils/crash_utils.src")
+import_code("/Tools/src/crash_lib/utils/argparse.src")
+import_code("/Tools/src/crash_lib/utils/metaxploit.src")
+
+import_code("/Tools/src/crash_lib/crash_functions/lib_scan.src")
+import_code("/Tools/src/crash_lib/crash_functions/mem_overflow.src")
+import_code("/Tools/src/crash_lib/utils/computer_explorer.src")
+import_code("/Tools/src/crash_lib/utils/file_explorer.src")
+crypto = include_lib("/lib/crypto.so")
+
+print("*******************************************")
+print("*                                         *")
+print("*                C.R.A.S.H                *") 
+print("* Command & Recon Automated Shell Handler *")
+print("*                                         *")
+print("*******************************************")
+
+_crash_help = function(args)
+    print("C.R.A.S.H - Command & Recon Automated Shell Handler")
+    print("Available commands:")
+    for cmd in commands.indexes 
+        print("- <b>" + cmd + "</b>: <color=#bdbdbd>" + commands[cmd].description + "</color>")
+    end for
+end function
+
+commands = {
+    "exit": {
+        "description": "Exit the C.R.A.S.H shell.",
+        "func": @exit,
+    },
+    "help": {
+        "description": "Show this help message.",
+        "func": @_crash_help,
+    },
+    "lib_scan": {
+        "description": "Scan a library .so file or library port for vulnerabilities.",
+        "func": @lib_scan,
+    },
+    "remote_lib_scan": {
+        "description": "Remotely scan a library .so file or library port for vulnerabilities.",
+        "func": @remote_lib_scan,
+    },
+    "mem_overflow": {
+        "description": "Executes a memory overflow attack and opens a dynamic handler for the attack result.",
+        "func": @mem_overflow,
+    },
+}
+
+
+requst_line = function()
+    command = get_user_input(null, []).split(" ")
+    function_name = command[0]
+    args = command[1:]
+    if commands.indexes.indexOf(function_name) != null then
+        command_info = commands[function_name]
+    
+        result = command_info.func(args)
+        if result != "" then
+            print(result)
+        end if
+    else
+        print("Error: Command '" + function_name + "' not found. Run 'help' to see available commands.")
+    end if
+end function
+
+while true
+    requst_line()
+end while
+CRASH-FILE-DELIMITERkernel_version.src
+// kernel_version
+// This script retrieves the kernel_router.so version of a router using its IP address.
+
+
+import_code("/Tools/src/crash_lib/utils/argparse.src")
+
+params_definition = [
+	{"name": "ip_address", "flag":null, "flag_alt": null, "type":"str",  "default":null,}, 
+]
+
+params_map = parse_args(params, params_definition)
+handle_help(params, params_definition, "Detects the kernel version of a router by its IP address")
+
+router = get_router(params_map.ip_address)
+print(router.kernel_version)
+CRASH-FILE-DELIMITERmem_overflow.src
+// mem_overflow
+// This script performs a memory overflow attack on a remote or local computer.
+    
+import_code("/Tools/src/crash_lib/utils/argparse.src")
+import_code("/Tools/src/crash_lib/utils/metaxploit.src")
+import_code("/Tools/src/crash_lib/utils/computer_explorer.src")
+import_code("/Tools/src/crash_lib/utils/file_explorer.src")
+import_code("/Tools/src/crash_lib/lib_scan/lib_scan_utils.src")
+import_code("/Tools/src/crash_lib/utils/crash_utils.src")
+crypto = include_lib("/lib/crypto.so")
+
+params_definition = [
+	{"name": "ip_address or -l", "flag":null, "flag_alt": null, "type":"str",  "default":null,}, 
+	{"name": "port or lib", "flag":null, "flag_alt": null, "type":"str",  "default":null,}, 
+	{"name": "memory_addr", "flag":null, "flag_alt": null, "type":"str",  "default":null,}, 
+	{"name": "unsec_value", "flag":null, "flag_alt": null, "type":"str",  "default":null,}, 
+	{"name": "args", "flag":"--args", "flag_alt": "-a", "type":"str",  "default":"",}, 
+]
+
+params_map = parse_args(params, params_definition)
+handle_help(params, params_definition, "Scan remote library for vulnerabilities")
+
+// Parse parameters
+lib_path = params_map["port or lib"]
+address =  params_map["ip_address or -l"]
+port = null
+if address != "-l" then
+    port = params_map["port or lib"].to_int
+end if
+memory_zone = params_map.memory_addr
+unsec_val = params_map.unsec_value
+extra_args = params_map.args
+
+
+metaLib = null
+// Start connection
+if params.indexOf("-l") == null then
+	// Remote use
+	net_session = metaxploit.net_use( address, port )
+	if not net_session then exit("Error: can't connect to net session")
+	metaLib = net_session.dump_lib
+else
+	// Local use
+	metaLib = metaxploit.load(lib_path)
+	if metaLib == null then
+		metaLib = metaxploit.load(current_path+"/"+lib_path)
+	end if
+	if metaLib == null then
+		metaLib = metaxploit.load("/lib/"+lib_path)
+	end if
+end if
+// Overflow
+result = metaLib.overflow(memory_zone, unsec_val, extra_args)
+
+if not result then exit("Program ended")
+print("The overflow resulted in ["+typeof(result)+"]")
+
+if typeof(result) == "shell" or typeof(result) == "file" or typeof(result) == "computer" then
+	old_vuln_data = find_vuln_data(metaLib, memory_zone, unsec_val)
+	access_level = ""
+
+	if old_vuln_data != null then
+		access_level = old_vuln_data.access_level
+	end if
+
+	if access_level == "" then
+		print()
+		access_level_in = user_input("Please manually update the access level for this vulnerability in the database (""r""/""root"")/(""u""/""user"")/(""g""/""guest""): ").upper
+		if access_level_in == "R" or access_level_in == "ROOT" then
+			access_level = "root"
+		else if access_level_in == "U" or access_level_in == "USER" then
+			access_level = "user"
+		else if access_level_in == "G" or access_level_in == "GUEST" then
+			access_level = "guest"
+		else
+			exit("Invalid access level input. Exiting.")
+		end if
+	end if
+	make_vuln_data_row(metaLib, memory_zone, unsec_val, "", typeof(result), access_level)
+else if typeof(result) == "string" or typeof(result) == "number" then
+	old_vuln_data = find_vuln_data(metaLib, memory_zone, unsec_val)
+	access_type = ""
+	
+	if old_vuln_data != null then
+		access_type = old_vuln_data.type
+	end if
+	if access_type == "" then
+		print()
+		access_type_in = user_input("Please manually update the exploit type for this vulnerability in the database (""p""/""passwd"")/(""f""/""firewall""): ").upper
+		if access_type_in == "P" or access_type_in == "PASSWD" then
+			access_type = "passwd"
+		else if access_type_in == "F" or access_type_in == "FIREWALL" then
+			access_type = "firewall"
+		else
+			exit("Invalid access type input. Exiting.")
+		end if
+	end if
+	make_vuln_data_row(metaLib, memory_zone, unsec_val, "", access_type, "")
+end if
+
+if typeof(result) == "shell" then
+    decision = user_input("Do you want to start a terminal connection? (Y/n): ")
+    if decision == "y" or decision == "Y" or decision == "" then
+        // Start terminal
+        result.start_terminal
+    else
+        print("Exiting without starting a terminal.")
+    end if
+else if typeof(result) == "file" then
+    // Handle file connection
+    print("Got file. Path: " + result.path())
+	file_connection(result)
+else if typeof(result) == "computer" then
+    // Handle computer connection
+    print("Got computer. Name: " + result.get_name)
+	computer_connection(result)
+else if result != 1 then
+	print("Error: expected shell, obtained: " + result)
+end if
+CRASH-FILE-DELIMITERscript_separate.src
+
+shell = get_shell
+computer = shell.host_computer
+
+joined_code = computer.File("/Tools/src/crash_lib/joined_source_code.crash")
+if joined_code == null then
+    exit("Error: Can't find the joined source code file.")
+end if
+joined_code = joined_code.get_content()
+if joined_code == "" then
+    exit("Error: The joined source code file is empty.")
+end if
+
+// Split the joined code into separate files based on the file delimiter
+delimiter = "CRASH-FILE" + "-DELIMITER"
+files = joined_code.split(delimiter)
+
+for file in files
+    if file.trim() == "" then continue // Skip empty files
+    lines = file.split("\n")
+    file_path = lines[0]
+    file_content = lines[1:].join("
+")
+    if file_content.trim() == "" then continue // Skip empty content
+	
+    already_created_file = computer.File("/Tools/src/crash_lib/" + file_path)
+    if already_created_file == null then
+        path_segments = file_path.split("/")
+        folder_path = path_segments[:-1].join("/")
+        if folder_path != "" then folder_path = folder_path + "/"
+        computer.touch("/Tools/src/crash_lib/" + folder_path, path_segments[-1])
+        already_created_file = computer.File("/Tools/src/crash_lib/" + file_path)
+    end if 
+    already_created_file.set_content(file_content)
+end for
+CRASH-FILE-DELIMITERservice.src
+// service
+// Allows to install, start, and stop a service on the system.
+import_code("/Tools/src/crash_lib/utils/argparse.src")
+
+params_definition = [
+	{"name": "lib_path", "flag":null, "flag_alt": null, "type":"str",  "default":null,}, 
+	{"name": "command", "flag":null, "flag_alt": null, "type":"str",  "default":null,}, 
+]
+
+params_map = parse_args(params, params_definition)
+handle_help(params, params_definition, "Scan remote library for vulnerabilities")
+
+service = include_lib(params_map.lib_path)
+result = null
+
+if params_map.command == "install_service" then
+	result = service.install_service
+else if params_map.command == "start_service" then
+	result = service.start_service
+else if params_map.command == "stop_service" then
+	result = service.stop_service
+else
+	print("Command is not valid")
+	exit()
+end if
+
+print(result)
+
+
+CRASH-FILE-DELIMITERwifi_master_cracker.src
+// Wifi master cracker
+// This script allows you to crack WiFi passwords
+
+import_code("/Tools/src/crash_lib/utils/argparse.src")
+
+params_definition = [
+	{"name": "wan_interface", "flag":null, "flag_alt": null, "type":"str",  "default":null,}, 
+	{"name": "acks", "flag":null, "flag_alt": null, "type":"str",  "default":null,}, 
+]
+
+params_map = parse_args(params, params_definition)
+handle_help(params, params_definition, "Scan remote library for vulnerabilities")
+
+
+crypto = include_lib("/lib/crypto.so")
+
+interface = params_map.wan_interface
+if params.len > 0 then
+	interface = params[0]
+end if
+acks = params_map.acks
+if params.len > 1 then
+	acks = params[1].to_int
+end if
+
+// Starting monitor mode
+crypto.airmon("start", interface)
+networks = get_shell.host_computer.wifi_networks(interface)
+for index in range(0, networks.len - 1)
+   print(index + ".) " + networks[index])
+end for
+
+selectedIndex = user_input("Select Wifi: ").to_int
+if (typeof(selectedIndex) == "string" or selectedIndex < 0 or selectedIndex > networks.len - 1) then
+   exit("Wrong index!")
+end if
+
+parsed = networks[selectedIndex].split(" ")
+bssid = parsed[0]
+pwr = parsed[1][:-1].to_int
+essid = parsed[2]
+potentialAcks = acks
+crypto.aireplay(bssid, essid, potentialAcks)
+wifiPassword = crypto.aircrack(current_path + "/file.cap")
+print("Wifi password for <color=yellow>" + essid + "</color> is <color=red>" + wifiPassword+"</color>")
+
+// Stopping monitor mode
+crypto.airmon("stop", interface)
+CRASH-FILE-DELIMITERcrash_functions/lib_scan.src
+lib_scan = function(args)
+    params_definition = [
+        {"name": "lib_file", "flag":null, "flag_alt": null, "type":"str",  "default":null,}, 
+        {"name":"output",   "flag":"--output",  "flag_alt":"-o",  "type":"bool",  "default":false,},
+        {"name":"cache", "flag":"--cache", "flag_alt":"-c",  "type":"bool", "default": false,},
+    ]
+
+    params_map = parse_args(args, params_definition)
+    stop_exec = handle_help(args, params_definition, "Scan Library for vulnerabilities")
+    if stop_exec then
+        return ""
+    end if
+
+        
+    // Use metaxploit to overflow a specific memory address
+    lib = metaxploit.load(current_path + "/" + params_map.lib_file)
+    if not lib then
+        lib = metaxploit.load(params_map.lib_file)
+    end if
+
+
+    if not lib then
+        exit("Error: Library file not found or invalid.")
+    end if
+
+    if params_map.cache == true then
+        print(get_cached_vuln_data_str(lib))
+    else
+        scan_lib(lib, params_map.output)
+    end if
+
+end function
+
+remote_lib_scan = function(args)
+    params_definition = [
+        {"name": "ip_address", "flag":null, "flag_alt": null, "type":"str",  "default":null,}, 
+        {"name": "port", "flag":null, "flag_alt": null, "type":"str",  "default":null,}, 
+        {"name":"output",   "flag":"--output",  "flag_alt":"-o",  "type":"bool",  "default":false,},
+        {"name":"cache", "flag":"--cache", "flag_alt":"-c",  "type":"bool", "default": false,},
+    ]
+
+    params_map = parse_args(args, params_definition)
+    stop_exec = handle_help(args, params_definition, "Scan library remotelly for vulnerabilities")
+    if stop_exec then
+        return ""
+    end if
+    
+    // Start connection
+    net_session = metaxploit.net_use(params_map.ip_address, params_map.port.to_int)
+    if not net_session then exit("Error: can't connect to net session")
+
+    // Use metaxploit to overflow a specific memory address
+    lib = net_session.dump_lib
+
+    if not lib then
+        exit("Error: Library file not found or invalid.")
+    end if
+
+    if params_map.cache == true then
+        print(get_cached_vuln_data_str(lib))
+    else
+        scan_lib(lib, params_map.output)
+    end if
+
+end function
+CRASH-FILE-DELIMITERcrash_functions/mem_overflow.src
+
+mem_overflow = function(args)
+        
+    params_definition = [
+        {"name": "ip_address or -l", "flag":null, "flag_alt": null, "type":"str",  "default":null,}, 
+        {"name": "port or lib", "flag":null, "flag_alt": null, "type":"str",  "default":null,}, 
+        {"name": "memory_addr", "flag":null, "flag_alt": null, "type":"str",  "default":null,}, 
+        {"name": "unsec_value", "flag":null, "flag_alt": null, "type":"str",  "default":null,}, 
+        {"name": "args", "flag":"--args", "flag_alt": "-a", "type":"str",  "default":"",}, 
+    ]
+
+    params_map = parse_args(args, params_definition)
+    stop_exec = handle_help(args, params_definition, "Scan library remotelly for vulnerabilities")
+    if stop_exec then
+        return ""
+    end if
+    
+        
+    metaLib = null
+    // Start connection
+    if args.indexOf("-l") == null then
+        // Remote use
+        net_session = metaxploit.net_use( params_map["ip_address or -l"], params_map["port or lib"] )
+        if not net_session then exit("Error: can't connect to net session")
+        metaLib = net_session.dump_lib
+    else
+        // Local use
+        metaLib = metaxploit.load(lib_path)
+        if metaLib == null then
+            metaLib = metaxploit.load(current_path+"/"+lib_path)
+        end if
+        if metaLib == null then
+            metaLib = metaxploit.load("/lib/"+lib_path)
+        end if
+    end if
+    // Overflow
+    result = metaLib.overflow(params_map.memory_addr, params_map.unsec_value, params_map.args)
+
+    if not result then exit("Program ended")
+    print("The overflow resulted in ["+typeof(result)+"]")
+
+    if typeof(result) == "shell" or typeof(result) == "file" or typeof(result) == "computer" then
+        old_vuln_data = find_vuln_data(metaLib, params_map.memory_addr, params_map.unsec_value)
+        access_level = ""
+
+        if old_vuln_data != null then
+            access_level = old_vuln_data.access_level
+        end if
+
+        if access_level == "" then
+            print()
+            access_level_in = user_input("Please manually update the access level for this vulnerability in the database (""r""/""root"")/(""u""/""user"")/(""g""/""guest""): ").upper
+            if access_level_in == "R" or access_level_in == "ROOT" then
+                access_level = "root"
+            else if access_level_in == "U" or access_level_in == "USER" then
+                access_level = "user"
+            else if access_level_in == "G" or access_level_in == "GUEST" then
+                access_level = "guest"
+            else
+                exit("Invalid access level input. Exiting.")
+            end if
+        end if
+        make_vuln_data_row(metaLib, params_map.memory_addr, params_map.unsec_value, "", typeof(result), access_level)
+    end if
+
+    if typeof(result) == "shell" then
+        decision = user_input("Do you want to start a terminal connection? (Y/n): ")
+        if decision == "y" or decision == "Y" or decision == "" then
+            // Start terminal
+            result.start_terminal
+        else
+            print("Exiting without starting a terminal.")
+        end if
+    else if typeof(result) == "file" then
+        // Handle file connection
+        print("Got file. Path: " + result.path())
+        file_connection(result)
+    else if typeof(result) == "computer" then
+        // Handle computer connection
+        print("Got computer. Name: " + result.get_name)
+        computer_connection(result)
+    else if result != 1 then
+        print("Error: expected shell, obtained: " + result)
+    end if
+
+end function
+CRASH-FILE-DELIMITERlib_scan/lib_scan.src
+// lib_scan
+// This script scans a computer's library for vulnerabilities.
+	
+computer = get_shell.host_computer
+
+import_code("/Tools/src/crash_lib/utils/argparse.src")
+import_code("/Tools/src/crash_lib/utils/metaxploit.src")
+import_code("/Tools/src/crash_lib/lib_scan/lib_scan_utils.src")
+
+params_definition = [
+	{"name": "lib_file", "flag":null, "flag_alt": null, "type":"str",  "default":null,}, 
+	{"name":"output",   "flag":"--output",  "flag_alt":"-o",  "type":"bool",  "default":false,},
+	{"name":"cache", "flag":"--cache", "flag_alt":"-c",  "type":"bool", "default": false,},
+]
+
+params_map = parse_args(params, params_definition)
+handle_help(params, params_definition, "Scan Library for vulnerabilities")
+
+lib_file = params_map.lib_file
+should_generate_file = params_map.output == true
+
+
+// Use metaxploit to overflow a specific memory address
+lib = metaxploit.load(current_path + "/" + lib_file)
+if not lib then
+	lib = metaxploit.load(lib_file)
+end if
+
+
+if not lib then
+	exit("Error: Library file not found or invalid.")
+end if
+
+if params_map.cache == true then
+	print(get_cached_vuln_data_str(lib))
+else
+	scan_lib(lib, should_generate_file)
+end if
+
+CRASH-FILE-DELIMITERlib_scan/lib_scan_utils.src
+// lib_scan_utils
+// This script provides utility functions for scanning libraries for vulnerabilities.
+
+nl = "
+"
+
+run_scanner = function(lib, memory_zone)
+	output = metaxploit.scan_address(lib, memory_zone)
+	vulnerabilities = output.split("\n\n")
+	
+	for vuln in vulnerabilities
+		var_from = vuln.indexOf("<b>")
+		var_to = vuln.indexOf("</b>")
+		if var_from == null then continue // Means it's not relevant to the actual output
+		
+		var_code = vuln[var_from+3:var_to]
+		conditions_list = []
+		
+		for line in vuln.split("\n")
+			if line.indexOf("*") != null then
+				conditions_list.push(line)
+			end if
+		end for
+		
+		if conditions_list.len > 0 then
+			for idx in range(0, conditions_list.len-1)
+				if idx < conditions_list.len-1 then
+					conditions_list[idx] = "|- " + conditions_list[idx][2:].replace("\n", "")
+				else
+					conditions_list[idx] = "'- " + conditions_list[idx][2:].replace("\n", "")
+				end if
+			end for
+		end if
+		
+		make_vuln_data_row(lib, memory_zone, var_code, conditions_list.join("{nl_slot}"), "", "")
+	end for
+	
+end function
+
+get_cached_vuln_data_str = function(lib)
+	
+	data = _get_vuln_data() // Ensure the vuln_data is filled before printing
+	all_rows = []
+	for row in data
+		if row.lib == lib.lib_name+"v"+lib.version then
+			
+			all_rows.push(row)
+		end if
+	end for
+
+	full_str = "\nMEMORY_ADDR UNSEC_VALUE ACCESS_TYPE ACCESS_LEVEL"
+	last_memory_zone = ""
+	for row in all_rows
+		access_type = row.type
+		access_level = row.access_level
+		if access_type == "" then
+			access_type = "Unknown"
+		end if
+		if access_level == "" then
+			access_level = "Unknown"
+		end if
+		new_line = "\n<color=red>" + row.memory_zone + "</color> <color=yellow>" + row.unsec_val + "</color> " + access_type + " " + access_level
+		
+		if last_memory_zone != "" and row.memory_zone != last_memory_zone then
+			new_line = "\n" + new_line // Add a new line if the memory zone changed
+		end if
+
+		new_line = format_columns(new_line)
+		if row.conditions != "" then
+			new_line = new_line + "\n<color=#bdbdbd>" + row.conditions.trim().replace("{quote_slot}", ",").replace("{nl_slot}", "</color>\n<color=#bdbdbd>")+"</color>"
+		end if
+		
+		full_str = full_str + new_line
+		last_memory_zone = row.memory_zone
+	end for
+
+	return full_str
+end function
+
+scan_lib = function(lib, should_generate_file=false)
+	memory_zones = metaxploit.scan(lib)
+
+	for zone in memory_zones
+    	run_scanner(lib, zone)
+    end for
+	
+	full_output = get_cached_vuln_data_str(lib)
+	print(full_output)
+	
+	if should_generate_file then
+		file_name = "lib_scan.txt"
+		computer.touch(current_path, file_name)
+		result_file = computer.File(file_name)
+		result_file.set_content(full_output)
+		print("Result dumped into " + file_name)
+	end if
+	
+	return full_output
+end function
+
+_get_vuln_data = function()
+	data = []
+
+	data_file = get_shell.host_computer.File("/Tools/src/crash_lib/data/vuln_data.csv")
+	if data_file == null then return []
+
+	lines = data_file.get_content.split("{separator_slot}")
+	if lines.len <= 1 then return []
+
+
+	for line in lines[1:] // Skip header
+		parts = line.split(",")
+		if parts.len < 6 then continue // Invalid line
+		conditions = parts[3].replace("{quote_slot}", ",").split(nl)
+		
+		row = {
+			"lib": parts[0].trim(),
+			"memory_zone": parts[1].trim(),
+			"unsec_val": parts[2].trim(),
+			"conditions": conditions.join(""),
+			"type": parts[4].trim(),
+			"access_level": parts[5].trim(),
+		}
+		data.push(row)
+	end for
+	return data
+end function
+
+save_vuln_data = function(vuln_data)
+	data_file = get_shell.host_computer.File("/Tools/src/crash_lib/data/vuln_data.csv")
+	if data_file == null then return
+
+	output = "lib,memory_zone,unsec_val,conditions,type,access_level{separator_slot}"
+	for row in vuln_data
+		output = output + row.lib + "," + row.memory_zone + "," + row.unsec_val + "," + row.conditions + "," + row.type + "," + row.access_level + "{separator_slot}"
+	end for
+	data_file.set_content(output)
+end function
+
+find_vuln_data_index_by_lib = function(metaLib, memory_zone, unsec_val)
+	vuln_data = _get_vuln_data()
+	if vuln_data.len == 0 then
+		return -1
+	end if
+	for i in range(0, vuln_data.len-1)
+		if vuln_data[i].lib == metaLib.lib_name+"v"+metaLib.version and vuln_data[i].memory_zone == memory_zone and vuln_data[i].unsec_val == unsec_val then
+			return i
+		end if
+	end for
+	return -1 // Not found
+end function
+
+find_vuln_data = function(metaLib, memory_zone, unsec_val)
+	vuln_data = _get_vuln_data()
+	index = find_vuln_data_index_by_lib(metaLib, memory_zone, unsec_val)
+	if index == -1 then return null
+	
+	return vuln_data[index]
+end function
+
+make_vuln_data_row = function(metaLib, memory_zone, unsec_val, conditions="", access_type="", access_level="")
+	vuln_data = _get_vuln_data()
+
+	// First try to find the vulnerability
+	vuln_index = find_vuln_data_index_by_lib(metaLib, memory_zone, unsec_val)
+	old_row = {
+		"lib": "",
+		"memory_zone": "",
+		"unsec_val": "",
+		"type": "",
+		"access_level": "",
+		"conditions": "",
+	}
+	if vuln_index != -1 then 
+		old_row = vuln_data[vuln_index]
+	end if
+
+	row = {
+		"lib": metaLib.lib_name+"v"+metaLib.version,
+		"memory_zone": memory_zone,
+		"unsec_val": unsec_val,
+		"type": access_type,
+		"access_level": access_level,
+		"conditions": conditions,
+	}
+
+	// Merge rows
+	if row.lib != "" then old_row.lib = row.lib
+	if row.memory_zone != "" then old_row.memory_zone = row.memory_zone
+	if row.unsec_val != "" then old_row.unsec_val = row.unsec_val
+	if row.type != "" then old_row.type = row.type
+	if row.access_level != "" and old_row.access_level == "" then old_row.access_level = row.access_level
+	if row.conditions != "" and old_row.conditions == "" then 
+		old_row.conditions = row.conditions.trim().replace(",", "{quote_slot}")
+	end if 
+	if vuln_index != -1 then
+		vuln_data[vuln_index] = old_row // Update existing row
+	else
+		vuln_data.push(old_row) // Add new row
+	end if
+
+	save_vuln_data(vuln_data)
+
+	return old_row
+end function
+CRASH-FILE-DELIMITERlib_scan/remote_lib_scan.src
+// remote_lib_scan
+// This script scans a remote computer's library for vulnerabilities.
+
+computer = get_shell.host_computer
+
+import_code("/Tools/src/crash_lib/utils/argparse.src")
+import_code("/Tools/src/crash_lib/utils/metaxploit.src")
+import_code("/Tools/src/crash_lib/lib_scan/lib_scan_utils.src")
+
+params_definition = [
+	{"name": "ip_address", "flag":null, "flag_alt": null, "type":"str",  "default":null,}, 
+	{"name": "port", "flag":null, "flag_alt": null, "type":"str",  "default":null,}, 
+	{"name":"output",   "flag":"--output",  "flag_alt":"-o",  "type":"bool",  "default":false,},
+	{"name":"cache", "flag":"--cache", "flag_alt":"-c",  "type":"bool", "default": false,},
+]
+
+params_map = parse_args(params, params_definition)
+handle_help(params, params_definition, "Scan remote library for vulnerabilities")
+
+address = params_map.ip_address
+port = params_map.port.to_int
+should_generate_file = params_map.output == true
+
+// Start connection
+net_session = metaxploit.net_use(address, port)
+if not net_session then exit("Error: can't connect to net session")
+
+// Use metaxploit to overflow a specific memory address
+lib = net_session.dump_lib
+
+if not lib then
+	exit("Error: Library file not found or invalid.")
+end if
+
+if params_map.cache == true then
+	print(get_cached_vuln_data_str(lib))
+else
+	scan_lib(lib, should_generate_file)
+end if
+CRASH-FILE-DELIMITERutils/argparse.src
+parse_args = function(args, definitions)
+	parsed = {}
+	i = 0
+	pos_index = 0
+    
+	// Fill in defaults
+	for def in definitions
+		if parsed.indexOf(def.name) == null then
+			if def.default != null then
+				parsed[def.name] = def.default
+			else if def.type == "bool" then
+				parsed[def.name] = false
+			end if
+		end if
+	end for
+
+    positional_args = []
+    optional_args = []
+    for def in definitions
+        if def.flag == null then
+            positional_args.push(def.name)
+        end if
+        if def.flag != null and def.flag_alt != null then
+            optional_args.push(def)
+        end if
+    end for
+
+    if positional_args.len > 0 then
+        for arg_index in range(0, positional_args.len-1)
+            if args.len < arg_index + 1 then
+                return null
+            else
+                parsed[positional_args[arg_index]] = args[arg_index]
+            end if
+        end for
+    end if
+
+    for opt_arg in optional_args
+        if opt_arg.type == "bool" and (args.indexOf(opt_arg.flag) != null or args.indexOf(opt_arg.flag_alt) != null) then
+            parsed[opt_arg.name] = true
+        else if opt_arg.type != "bool" and (args.indexOf(opt_arg.flag) != null or args.indexOf(opt_arg.flag_alt) != null)  then
+            index = args.indexOf(opt_arg.flag)
+            if index == null then
+                index = args.indexOf(opt_arg.flag_alt)
+            end if
+            
+            if args.len <= index + 1 then
+                return null
+            end if
+            parsed[opt_arg.name] = args[index + 1]
+
+        end if
+    end for
+
+	return parsed
+end function
+
+
+print_help = function(definitions, description)
+	print(description + "\n")
+	print("Arguments:")
+
+	for def in definitions
+		line = "  "
+		if def.flag != null or def.flag_alt != null then
+			if def.flag != null then
+				line = line + def.flag
+			end if
+			if def.flag_alt != null then
+				if def.flag != null then
+					line = line + ", " + def.flag_alt
+				else
+					line = line + def.flag_alt
+				end if
+			end if
+			line = line + " "
+		else
+			line = line + "[positional] "
+		end if
+
+		line = line + def.name + " : " + def.type
+
+		if def.default != null and not (def.type == "bool" and def.default == false) then
+			line = line + " [default: " + def.default + "]"
+		end if
+
+		print(line)
+	end for
+end function
+
+
+handle_help = function(params, definitions, description)
+	i = 0
+	pos_index = 0
+
+	while i < params.len
+		arg = params[i]
+
+		// Show help immediately if -h or --help is found
+		if arg == "-h" or arg == "--help" then
+			print_help(definitions, description)
+			return true
+		end if
+
+		matched = false
+
+		// Match flags
+		for def in definitions
+			if (def.flag != null and def.flag == arg) or (def.flag_alt != null and def.flag_alt == arg) then
+				matched = true
+				if def.type != "bool" then
+					i = i + 1
+					if i >= params.len then
+						print("Missing value for " + arg)
+						print_help(definitions, description)
+						return true
+					end if
+				end if
+				break
+			end if
+		end for
+
+		if not matched then
+			// Match positional
+			while pos_index < definitions.len
+				def = definitions[pos_index]
+				pos_index = pos_index + 1
+				if def.flag == null then
+					matched = true
+					break
+				end if
+			end while
+
+			if not matched then
+				print("Unknown argument: " + arg)
+				print_help(definitions, description)
+				return true
+			end if
+		end if
+
+		i = i + 1
+	end while
+
+	return false
+end function
+
+CRASH-FILE-DELIMITERutils/computer_explorer.src
+// computer_explorer
+// This script provides a set of functions to interact with the computer using the terminal.
+
+parse_params_list = function(params_list, names)
+	params_list_map = {}
+	for idx in range(0, names.len-1)
+		params_list_map[names[idx]] = params_list[idx]
+	end for
+	return params_list_map
+end function
+
+_active_net_card = function(computer, params_list)
+	return computer.active_net_card
+end function
+
+_ls_computer = function(computer, params_list)
+	if params_list.len == 0 then
+		params_list = ["/"]
+	end if
+	params_list = parse_params_list(params_list, ["path"])
+	folder = computer.File(params_list.path)
+	inner_folders = folder.get_folders
+	inner_files = folder.get_files
+	output = "Folders:\n"
+
+	if inner_folders.len > 0 then
+		for inner_folder in inner_folders
+			r = "<color=green>R</color>"
+			w = "<color=green>W</color>"
+			x = "<color=green>X</color>"
+			if inner_folder.has_permission("r") == false then r = "<color=red>R</color>"
+			if inner_folder.has_permission("w") == false then w = "<color=red>W</color>"
+			if inner_folder.has_permission("x") == false then x = "<color=red>X</color>"
+			permissions_str = r + w + x
+
+			output = output + "  - <b>" + inner_folder.name + "</b>/ "+permissions_str+"\n"
+		end for
+	end if
+	
+	if inner_files.len > 0 then
+		for inner_file in inner_files
+			r = "<color=green>R</color>"
+			w = "<color=green>W</color>"
+			x = "<color=green>X</color>"
+			if inner_file.has_permission("r") == false then r = "<color=red>R</color>"
+			if inner_file.has_permission("w") == false then w = "<color=red>W</color>"
+			if inner_file.has_permission("x") == false then x = "<color=red>X</color>"
+			permissions_str = r + w + x
+
+			output = output + "  - <b>" + inner_file.name + "</b> "+permissions_str+"\n"
+		end for
+	end if
+
+	print(output)
+	return "" 
+end function
+
+_change_password = function(computer, params_list)
+	params_list = parse_params_list(params_list, ["user", "password"])
+	return computer.change_password(params_list.user, params_list.password)
+end function
+
+_close_program = function(computer, params_list)
+	params_list = parse_params_list(params_list, ["pid"])
+	return computer.close_program(params_list.pid.to_int)
+end function
+
+_connect_ethernet = function(computer, params_list)
+	params_list = parse_params_list(params_list, ["net_device", "local_address", "gateway"])
+	return computer.connect_ethernet(params_list.net_device, params_list.local_address, params_list.gateway)
+end function
+
+_connect_wifi = function(computer, params_list)
+	params_list = parse_params_list(params_list, ["net_device", "bssid", "essid", "password"])
+	return computer.connect_wifi(params_list.net_device, params_list.bssid, params_list.essid, params_list.password)
+end function
+
+_create_folder = function(comuter, params_list)
+	params_list = parse_params_list(params_list, ["path", "folder_name"])
+	return computer.create_folder(params_list.path, params_list.folder_name)
+end function
+
+_create_group = function(computer, params_list)
+	params_list = parse_params_list(params_list, ["username", "groupname"])
+	return computer.create_group(params_list.username, params_list.groupname)
+end function
+
+_create_user = function(computer, params_list)
+	params_list = parse_params_list(params_list, ["user", "password"])
+	return computer.create_user(params_list.user, params_list.password)
+end function
+
+_delete_group = function(computer, params_list)
+	params_list = parse_params_list(params_list, ["username", "groupname"])
+	return computer.delete_group(params_list.username, params_list.groupname)
+end function
+
+_delete_user = function(computer, params_list)
+	params_list = parse_params_list(params_list, ["user", "password"])
+	return computer.delete_user(params_list.user, params_list.password)
+end function
+
+_get_name = function(computer, params_list)
+	return computer.get_name	
+end function
+
+_get_ports = function(computer, params_list)
+	return computer.get_ports
+end function
+
+_groups = function(computer, params_list)
+	params_list = parse_params_list(params_list, ["username"])
+	return computer.groups(params_list.username)
+end function
+
+_is_network_active = function(computer, params_list)
+	return computer.is_network_active
+end function
+
+_local_ip = function(computer, params_list)
+	return computer.local_ip
+end function
+
+_network_devices = function(computer, params_list)
+	return computer.network_devices
+end function
+
+_public_ip = function(computer, params_list)
+	return computer.public_ip
+end function
+
+_show_procs = function(computer, params_list)
+	return computer.show_procs
+end function
+
+_touch = function(computer, params_list)
+	params_list = parse_params_list(params_list, ["name"])
+	return computer.touch(params_list.path, params_list.name)
+end function
+
+_wifi_networks = function(computer, params_list)
+	params_list = parse_params_list(params_list, ["net_device"])
+	return computer.wifi_networks(params_list.net_device)
+end function
+
+_file = function(computer, params_list)
+	params_list = parse_params_list(params_list, ["path_file"])
+	file = computer.File(params_list.path_file)
+	return file_connection(file)
+end function
+
+
+
+computer_commands = {
+	"ls": {
+		"description": "List files and folders in a directory.",
+		"params_list": [],
+		"func": @_ls_computer,
+	},
+	"active_net_card": {
+		"description": "Get the active network card.",
+		"params_list": [],
+		"func": @_active_net_card,
+	},
+	"change_password": {
+		"description": "Change a user's password.",
+		"params_list": ["[user]", "[password]"],
+		"func": @_change_password,
+	},
+	"close_program": {
+		"description": "Close a program by its PID.",
+		"params_list": ["[pid]"],
+		"func": @_close_program,
+	},
+	"connect_ethernet": {
+		"description": "Connect to an Ethernet network.",
+		"params_list": ["[net_device]", "[local_address]", "[gateway]"],
+		"func": @_connect_ethernet,
+	},
+	"connect_wifi": {
+		"description": "Connect to a Wi-Fi network.",
+		"params_list": ["[net_device]", "[bssid]", "[essid]", "[password]"],
+		"func": @_connect_wifi,
+	},
+	"create_folder": {
+		"description": "Create a folder in a specified path.",
+		"params_list": ["[path]", "[folder_name]"],
+		"func": @_create_folder,
+	},
+	"create_group": {
+		"description": "Create a group for a user.",
+		"params_list": ["[username]", "[groupname]"],
+		"func": @_create_group,
+	},
+	"create_user": {
+		"description": "Create a new user with a password.",
+		"params_list": ["[user]", "[password]"],
+		"func": @_create_user,
+	},
+	"delete_group": {
+		"description": "Delete a group for a user.",
+		"params_list": ["[username]", "[groupname]"],
+		"func": @_delete_group,
+	},
+	"delete_user": {
+		"description": "Delete a user with a password.",
+		"params_list": ["[user]", "[password]"],
+		"func": @_delete_user,
+	},
+	"get_name": {
+		"description": "Get the name of the computer.",
+		"params_list": [],
+		"func": @_get_name,
+	},
+	"get_ports": {
+		"description": "Get the list of ports on the computer.",
+		"params_list": [],
+		"func": @_get_ports,
+	},
+	"groups": {
+		"description": "Get the groups of a user.",
+		"params_list": ["[username]"],
+		"func": @_groups,
+	},
+	"is_network_active": {
+		"description": "Check if the network is active.",
+		"params_list": [],
+		"func": @_is_network_active,
+	},
+	"local_ip": {
+		"description": "Get the local IP address of the computer.",
+		"params_list": [],
+		"func": @_local_ip,
+	},
+	"network_devices": {
+		"description": "Get the list of network devices.",
+		"params_list": [],
+		"func": @_network_devices,
+	},
+	"public_ip": {
+		"description": "Get the public IP address of the computer.",
+		"params_list": [],
+		"func": @_public_ip,
+	},
+	"show_procs": {
+		"description": "Show the running processes on the computer.",
+		"params_list": [],
+		"func": @_show_procs,
+	},
+	"ps": {
+		"description": "Show the running processes on the computer.",
+		"params_list": [],
+		"func": @_show_procs,
+	},
+	"touch": {
+		"description": "Create a new file or update the timestamp of an existing file.",
+		"params_list": ["[path]", "[name]"],
+		"func": @_touch,
+	},
+	"wifi_networks": {
+		"description": "Get the list of available Wi-Fi networks.",
+		"params_list": ["[net_device]"],
+		"func": @_wifi_networks,
+	},
+	"file": {
+		"description": "Interact with a file on the computer.",
+		"params_list": ["[path_file]"],
+		"func": @_file,
+	},
+}
+
+computer_extra_commands = {
+	"exit": {
+		"description": "Exit the file connection.",
+		"params_list": [],
+	},
+	"help": {
+		"description": "Show this help message.",
+		"params_list": [],
+	},
+	"h": {
+		"description": "Show this help message.",
+		"params_list": [],
+	},
+}
+
+_help = function(computer, params_list)
+	output = "Available commands:\n"
+	for cmd in computer_commands.indexes
+		output = output + "  - " + cmd + " " + computer_commands[cmd].params_list.join(" ") + ": " + computer_commands[cmd].description + "\n"
+	end for
+	for cmd in computer_extra_commands.indexes
+		output = output + "  - " + cmd + " " + computer_extra_commands[cmd].params_list.join(" ") + ": " + computer_extra_commands[cmd].description + "\n"
+	end for
+	return output
+end function
+
+computer_connection = function(computer)
+	// Receives a Computer object and allows dynamically running methods in that class from the terminal
+	while true
+		command = get_user_input(null, ["[<b><color=purple>Computer</color></b>]"]).split(" ")
+
+		func = command[0]
+		params_list = command[1:]
+		output = ""
+
+		if func == "exit" then return
+		if func == "help" or func == "h" then
+			output = _help(computer, params_list)
+			print(output)
+			continue
+		end if
+
+		if computer_commands.hasIndex(func) then
+			command_info = computer_commands[func]
+			if params_list.len != command_info.params_list.len then
+				output = "Error: Invalid number of parameters for " + func + "\nUsage: " + func + " " + command_info.params_list.join(" ")
+			else
+				output = command_info.func(computer, params_list)
+			end if
+		else if not computer_extra_commands.hasIndex(func) then
+			output = "Error: Command '" + func + "' not found."
+		end if
+		
+		print(output)
+	end while
+
+end function
+
+CRASH-FILE-DELIMITERutils/crash_utils.src
+get_user_input = function(user_slot=null, custom_slot_values=[])
+	val = "<pos=04>——[<b><color=red>C.R.A.S.H</color></b>]{custom_slot}<voffset=-0.5em><pos=00>|<voffset=-1em><space=-0.6em>|<voffset=-1.5em><pos=04>——:~ "
+	if user_slot != null then
+        val = val.replace("{user_slot}", user_slot)
+    else
+        val = val.replace("{user_slot}", "uwnown")
+    end if
+
+    if custom_slot_values.len > 0 then
+        val = val.replace("{custom_slot}", "—"+custom_slot_values.join("—"))
+    else
+        val = val.replace("{custom_slot}", "")
+    end if
+
+	return user_input(val)
+end function
+CRASH-FILE-DELIMITERutils/file_explorer.src
+// file_explorer
+// This script provides a set of functions to interact with files and folders using the terminal.
+
+parse_params_list = function(params_list_list, names)
+	params_list_map = {}
+	for idx in range(0, names.len-1)
+		params_list_map[names[idx]] = params_list_list[idx]
+	end for
+	return params_list_map
+end function
+
+_allow_import = function(file, params_list)
+	return file.allow_import
+end function
+	
+_chmod = function(file, params_list)
+	if params_list.len == 1 then
+		params_list.push("false")
+	end if
+	params_list = parse_params_list(params_list, ["permissions", "isRecursive"])
+
+	return file.chmod(params_list.permissions, params_list.isRecursive == "true")
+end function
+
+_copy = function(file, params_list)
+	params_list = parse_params_list(params_list, ["path", "file_new_name"])
+	return file.copy(params_list.path, params_list.file_new_name)
+end function
+
+_delete = function(file, params_list)
+	return file.delete()
+end function
+
+_get_content = function(file, params_list)
+	return file.get_content()
+end function
+
+_get_folders = function(file, params_list)
+	output = "Folders in " + file.name + ":\n"
+	for inner_folder in file.get_folders
+		output = output + "  - " + inner_folder.name + "/\n"
+	end for
+	print(output)
+	return ""
+end function
+
+_get_files = function(file, params_list)
+	output = "Files in " + file.name + ":\n"
+	for inner_file in file.get_files
+		output = output + "  - " + inner_file.name + "\n"
+	end for
+	print(output)
+	return ""
+end function
+
+_group = function(file, params_list)
+	return file.group
+end function
+
+_has_permission = function(file, params_list)
+	params_list = parse_params_list(params_list, ["type_perm"])
+	return file.has_permission(params_list.type_perm)
+end function
+
+_is_binary = function(file, params_list)
+	return file.is_binary
+end function
+
+_is_folder = function(file, params_list)
+	return file.is_folder
+end function
+
+_is_symlink = function(file, params_list)
+	return file.is_symlink
+end function
+
+_move = function(file, params_list)
+	params_list = parse_params_list(params_list, ["path", "file_new_name"])
+	return file.move(params_list.path, params_list.file_new_name)
+end function
+
+_name = function(file, params_list)
+	return file.name
+end function
+
+_owner = function(file, params_list)
+	return file.owner
+end function
+
+_parent = function(file, params_list)
+	return file.parent.name
+end function
+
+_path = function(file, params_list)
+	if params_list.len == 0 then
+		params_list.push("false")
+	end if
+	params_list = parse_params_list(params_list, ["symlinkOrigPath"])
+	return file.path(params_list.symlinkOrigPath == "true")
+end function
+
+_permissions = function(file, params_list)
+	return file.permissions
+end function
+
+_file_rename = function(file, params_list)
+	params_list = parse_params_list(params_list, ["new_name"])
+	return file.rename(params_list.new_name)
+end function
+
+_file_set_content = function(file, params_list)
+	params_list = parse_params_list(params_list, ["text"])
+	return file.set_content(params_list.text)
+end function
+
+_file_set_group = function(file, params_list)
+	if params_list.len == 1 then
+		params_list.push("false")
+	end if
+	params_list = parse_params_list(params_list, ["groupname", "isRecursive"])
+	return file.set_group(params_list.groupname, params_list.isRecursive == "true")
+end function
+
+_file_set_owner = function(file, params_list)
+	if params_list.len == 1 then
+		params_list.push("false")
+	end if
+	params_list = parse_params_list(params_list, ["ownername", "isRecursive"])
+	return file.set_owner(params_list.ownername, params_list.isRecursive == "true")
+end function
+
+_file_size = function(file, params_list)
+	return file.size
+end function
+	
+_ls_file = function(folder, params_list)
+	if folder.is_folder == false then
+		return "This is not a folder."
+	end if
+	
+	inner_folders = folder.get_folders
+	inner_files = folder.get_files
+
+	output = "Folders:\n"
+	if inner_folders.len > 0 then
+		for inner_folder in inner_folders
+			r = "<color=green>R</color>"
+			w = "<color=green>W</color>"
+			x = "<color=green>X</color>"
+			if inner_folder.has_permission("r") == false then r = "<color=red>R</color>"
+			if inner_folder.has_permission("w") == false then w = "<color=red>W</color>"
+			if inner_folder.has_permission("x") == false then x = "<color=red>X</color>"
+			permissions_str = r + w + x
+
+			output = output + "  - <b>" + inner_folder.name + "</b>/ "+permissions_str+"\n"
+		end for
+	end if
+	
+	if inner_files.len > 0 then
+		for inner_file in inner_files
+			r = "<color=green>R</color>"
+			w = "<color=green>W</color>"
+			x = "<color=green>X</color>"
+			if inner_file.has_permission("r") == false then r = "<color=red>R</color>"
+			if inner_file.has_permission("w") == false then w = "<color=red>W</color>"
+			if inner_file.has_permission("x") == false then x = "<color=red>X</color>"
+			permissions_str = r + w + x
+
+			output = output + "  - <b>" + inner_file.name + "</b> "+permissions_str+"\n"
+		end for
+	end if
+
+	print(output)
+	return "" 
+end function
+
+_set_symlink = function(file, params_list)
+	params_list = parse_params_list(params_list, ["path", "file_new_name"])
+	return file.symlink(params_list.path, params_list.file_new_name)
+end function
+
+_file_cd = function(folder, params_list)
+	params_list = parse_params_list(params_list, ["path"])
+	current_file = folder
+	if params_list.path == ".." then
+		if folder.parent == null then
+			return folder
+		else
+			current_file = folder.parent
+		end if
+	else
+		inner_folders = folder.get_folders
+		inner_files = folder.get_files
+
+		for inner_folder in inner_folders
+			if inner_folder.name == params_list.path then
+				current_file = inner_folder
+				break
+			end if
+		end for
+		for inner_file in inner_files
+			if inner_file.name == params_list.path then
+				current_file = inner_file
+				break
+			end if
+		end for
+	end if
+
+	return current_file
+end function
+
+_file_decipher = function(file, params_list)
+	if crypto == null then
+		return "Crypto library not found. Please install the crypto library to use this command."
+	end if
+	if file.is_binary then
+		return "This file is binary."
+	end if
+	if file.is_folder then
+		return "This is a folder, not a file."
+	end if
+	
+	content = file.get_content()
+	if content == "" then
+		return "The file is empty."
+	end if
+	if content == null then
+		return "The cannot be read."
+	end if
+	hashes = content.split("\n")
+	if hashes.len == 0 then
+		return "The file is empty."
+	end if
+
+	valid_hashes = []
+	idx = 0
+	for hash_row in hashes
+		if hash_row.trim() == "" then continue
+		if hash_row[0] == "#" then continue // Skip comments
+		if hash_row[0] == "\n" then continue // Skip empty lines
+		valid_hashes.push(hash_row.trim())
+		print("<b>["+idx+"]</b> " + hash_row.trim())
+		idx = idx + 1
+	end for
+
+	choosen_hash_idx = user_input("Enter the index of the hash to decipher: ")
+	if choosen_hash_idx == "" or choosen_hash_idx.to_int >= valid_hashes.len then
+		return "No hash index provided."
+	end if
+
+	choosen_hash = valid_hashes[choosen_hash_idx.to_int]
+	deciphered_content = crypto.decipher(choosen_hash)
+
+	return "Deciphered content: " + deciphered_content
+end function
+
+file_commands = {
+	"ls": {
+		"description": "List files and folders in a directory.",
+		"params_list": [],
+		"func": @_ls_file,
+	},
+	"allow_import": {
+		"description": "Check if the file allows import.",
+		"params_list": [],
+		"func": @_allow_import,
+	},
+	"chmod": {
+		"description": "Change file permissions.",
+		"params_list": ["[permissions]", "[isRecursive]"],
+		"func": @_chmod,
+	},
+	"copy": {
+		"description": "Copy the file to a new location.",
+		"params_list": ["[path]", "[file_new_name]"],
+		"func": @_copy,
+	},
+	"delete": {
+		"description": "Delete the file.",
+		"params_list": [],
+		"func": @_delete,
+	},
+	"get_content": {
+		"description": "Get the content of the file.",
+		"params_list": [],
+		"func": @_get_content,
+	},
+	"get_folders": {
+		"description": "Get folders inside the file.",
+		"params_list": [],
+		"func": @_get_folders,
+	},
+	"get_files": {
+		"description": "Get files inside the file.",
+		"params_list": [],
+		"func": @_get_files,
+	},
+	"group": {
+		"description": "Get the group of the file.",
+		"params_list": [],
+		"func": @_group,
+	},
+	"has_permission": {
+		"description": "Check if the file has a specific permission.",
+		"params_list": ["[type_perm]"],
+		"func": @_has_permission,
+	},
+	"is_binary": {
+		"description": "Check if the file is binary.",
+		"params_list": [],
+		"func": @_is_binary,
+	},
+	"is_folder": {
+		"description": "Check if the file is a folder.",
+		"params_list": [],
+		"func": @_is_folder,
+	},
+	"is_symlink": {
+		"description": "Check if the file is a symlink.",
+		"params_list": [],
+		"func": @_is_symlink,
+	},
+	"move": {
+		"description": "Move the file to a new location.",
+		"params_list": ["[path]", "[file_new_name]"],
+		"func": @_move,
+	},
+	"name": {
+		"description": "Get the name of the file.",
+		"params_list": [],
+		"func": @_name,
+	},
+	"owner": {
+		"description": "Get the owner of the file.",
+		"params_list": [],
+		"func": @_owner,
+	},
+	"parent": {
+		"description": "Get the parent folder of the file.",
+		"params_list": [],
+		"func": @_parent,
+	},
+	"path": {
+		"description": "Get the path of the file.",
+		"params_list": ["[symlinkOrigPath]"],
+		"func": @_path,
+	},
+	"permissions": {
+		"description": "Get the permissions of the file.",
+		"params_list": [],
+		"func": @_permissions,
+	},
+	"rename": {
+		"description": "Rename the file.",
+		"params_list": ["[new_name]"],
+		"func": @_file_rename,
+	},
+	"set_content": {
+		"description": "Set the content of the file.",
+		"params_list": ["[text]"],
+		"func": @_file_set_content,
+	},
+	"set_group": {
+		"description": "Set the group of the file.",
+		"params_list": ["[groupname]", "[isRecursive]"],
+		"func": @_file_set_group,
+	},
+	"set_owner": {
+		"description": "Set the owner of the file.",
+		"params_list": ["[ownername]", "[isRecursive]"],
+		"func": @_file_set_owner,
+	},
+	"size": {
+		"description": "Get the size of the file.",
+		"params_list": [],
+		"func": @_file_size,
+	},
+	"set_symlink": {
+		"description": "Set the file as a symlink.",
+		"params_list": ["[path]", "[file_new_name]"],
+		"func": @_set_symlink,
+	},
+	"decipher": {
+		"description": "Decipher hashed content of the file.",
+		"params_list": [],
+		"func": @_file_decipher,
+	},
+}
+
+file_extra_commands = {
+	"cd": {
+		"description": "Change directory to a specified path.",
+		"params_list": ["[path]"],
+	},
+	"exit": {
+		"description": "Exit the file connection.",
+		"params_list": [],
+	},
+	"help": {
+		"description": "Show this help message.",
+		"params_list": [],
+	},
+	"h": {
+		"description": "Show this help message.",
+		"params_list": [],
+	},
+}
+
+_file_help = function(computer, params_list)
+	output = "Available commands:\n"
+	for cmd in file_commands.indexes
+		output = output + "  - " + cmd + " " + file_commands[cmd].params_list.join(" ") + ": " + file_commands[cmd].description + "\n"
+	end for
+	for cmd in file_extra_commands.indexes
+		output = output + "  - " + cmd + " " + file_extra_commands[cmd].params_list.join(" ") + ": " + file_extra_commands[cmd].description + "\n"
+	end for
+	return output
+end function
+
+file_connection = function(file, params_list)
+	// Receives a File object and allows dynamically running methods in that class from the terminal
+	while true
+		command = get_user_input(null, ["[<b><color=yellow>File</color></b>]", "("+file.path+")"]).split(" ")
+
+		func = command[0]
+		params_list = command[1:]
+		output = ""
+		if func == "exit" then return
+		if func == "cd" then
+			current_folder = _file_cd(file, params_list)
+			return file_connection(current_folder)
+		end if
+		if func == "help" or func == "h" then
+			output = _file_help(file, params_list)
+			print(output)
+			continue
+		end if
+
+		if file_commands.hasIndex(func) then
+			command_info = file_commands[func]
+			if params_list.len != command_info.params_list.len then
+				output = "Error: Invalid number of parameters for " + func + "\nUsage: " + func + " " + command_info.params_list.join(" ")
+			else
+				output = command_info.func(file, params_list)
+			end if
+		else if not file_extra_commands.hasIndex(func) then
+			output = "Error: Command '" + func + "' not found."
+		end if
+		
+		print(output)
+	end while
+
+end function
+
+CRASH-FILE-DELIMITERutils/metaxploit.src
+// metaxploit
+// Adds metaxploit boilerplate code to the script
+
+// Load metaxploit either by using the global version or the local version
+metaxploit = include_lib("/lib/metaxploit.so")
+if not metaxploit then
+    metaxploit = include_lib(current_path + "/metaxploit.so")
+end if
+if not metaxploit then exit("Error: Can't find metaxploit library in the /lib path or the current folder")

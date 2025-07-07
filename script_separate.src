@@ -1,0 +1,35 @@
+
+shell = get_shell
+computer = shell.host_computer
+
+joined_code = computer.File("/Tools/src/crash_lib/joined_source_code.crash")
+if joined_code == null then
+    exit("Error: Can't find the joined source code file.")
+end if
+joined_code = joined_code.get_content()
+if joined_code == "" then
+    exit("Error: The joined source code file is empty.")
+end if
+
+// Split the joined code into separate files based on the file delimiter
+delimiter = "CRASH-FILE" + "-DELIMITER"
+files = joined_code.split(delimiter)
+
+for file in files
+    if file.trim() == "" then continue // Skip empty files
+    lines = file.split("\n")
+    file_path = lines[0]
+    file_content = lines[1:].join("
+")
+    if file_content.trim() == "" then continue // Skip empty content
+	
+    already_created_file = computer.File("/Tools/src/crash_lib/" + file_path)
+    if already_created_file == null then
+        path_segments = file_path.split("/")
+        folder_path = path_segments[:-1].join("/")
+        if folder_path != "" then folder_path = folder_path + "/"
+        computer.touch("/Tools/src/crash_lib/" + folder_path, path_segments[-1])
+        already_created_file = computer.File("/Tools/src/crash_lib/" + file_path)
+    end if 
+    already_created_file.set_content(file_content)
+end for

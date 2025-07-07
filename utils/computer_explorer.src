@@ -151,120 +151,125 @@ end function
 
 
 
-commands = {
+computer_commands = {
 	"ls": {
 		"description": "List files and folders in a directory.",
-		"params_list": ["[path]"],
-		"func": "_ls_computer",
+		"params_list": [],
+		"func": @_ls_computer,
 	},
 	"active_net_card": {
 		"description": "Get the active network card.",
 		"params_list": [],
-		"func": "_active_net_card",
+		"func": @_active_net_card,
 	},
 	"change_password": {
 		"description": "Change a user's password.",
 		"params_list": ["[user]", "[password]"],
-		"func": "_change_password",
+		"func": @_change_password,
 	},
 	"close_program": {
 		"description": "Close a program by its PID.",
 		"params_list": ["[pid]"],
-		"func": "_close_program",
+		"func": @_close_program,
 	},
 	"connect_ethernet": {
 		"description": "Connect to an Ethernet network.",
 		"params_list": ["[net_device]", "[local_address]", "[gateway]"],
-		"func": "_connect_ethernet",
+		"func": @_connect_ethernet,
 	},
 	"connect_wifi": {
 		"description": "Connect to a Wi-Fi network.",
 		"params_list": ["[net_device]", "[bssid]", "[essid]", "[password]"],
-		"func": "_connect_wifi",
+		"func": @_connect_wifi,
 	},
 	"create_folder": {
 		"description": "Create a folder in a specified path.",
 		"params_list": ["[path]", "[folder_name]"],
-		"func": "_create_folder",
+		"func": @_create_folder,
 	},
 	"create_group": {
 		"description": "Create a group for a user.",
 		"params_list": ["[username]", "[groupname]"],
-		"func": "_create_group",
+		"func": @_create_group,
 	},
 	"create_user": {
 		"description": "Create a new user with a password.",
 		"params_list": ["[user]", "[password]"],
-		"func": "_create_user",
+		"func": @_create_user,
 	},
 	"delete_group": {
 		"description": "Delete a group for a user.",
 		"params_list": ["[username]", "[groupname]"],
-		"func": "_delete_group",
+		"func": @_delete_group,
 	},
 	"delete_user": {
 		"description": "Delete a user with a password.",
 		"params_list": ["[user]", "[password]"],
-		"func": "_delete_user",
+		"func": @_delete_user,
 	},
 	"get_name": {
 		"description": "Get the name of the computer.",
 		"params_list": [],
-		"func": "_get_name",
+		"func": @_get_name,
 	},
 	"get_ports": {
 		"description": "Get the list of ports on the computer.",
 		"params_list": [],
-		"func": "_get_ports",
+		"func": @_get_ports,
 	},
 	"groups": {
 		"description": "Get the groups of a user.",
 		"params_list": ["[username]"],
-		"func": "_groups",
+		"func": @_groups,
 	},
 	"is_network_active": {
 		"description": "Check if the network is active.",
 		"params_list": [],
-		"func": "_is_network_active",
+		"func": @_is_network_active,
 	},
 	"local_ip": {
 		"description": "Get the local IP address of the computer.",
 		"params_list": [],
-		"func": "_local_ip",
+		"func": @_local_ip,
 	},
 	"network_devices": {
 		"description": "Get the list of network devices.",
 		"params_list": [],
-		"func": "_network_devices",
+		"func": @_network_devices,
 	},
 	"public_ip": {
 		"description": "Get the public IP address of the computer.",
 		"params_list": [],
-		"func": "_public_ip",
+		"func": @_public_ip,
 	},
 	"show_procs": {
 		"description": "Show the running processes on the computer.",
 		"params_list": [],
-		"func": "_show_procs",
+		"func": @_show_procs,
+	},
+	"ps": {
+		"description": "Show the running processes on the computer.",
+		"params_list": [],
+		"func": @_show_procs,
 	},
 	"touch": {
 		"description": "Create a new file or update the timestamp of an existing file.",
 		"params_list": ["[path]", "[name]"],
-		"func": "_touch",
+		"func": @_touch,
 	},
 	"wifi_networks": {
 		"description": "Get the list of available Wi-Fi networks.",
 		"params_list": ["[net_device]"],
-		"func": "_wifi_networks",
+		"func": @_wifi_networks,
 	},
 	"file": {
 		"description": "Interact with a file on the computer.",
 		"params_list": ["[path_file]"],
-		"func": "_file",
+		"func": @_file,
 	},
 }
 
-extra_commands = {
+computer_extra_commands = {
 	"exit": {
 		"description": "Exit the file connection.",
 		"params_list": [],
@@ -281,44 +286,14 @@ extra_commands = {
 
 _help = function(computer, params_list)
 	output = "Available commands:\n"
-	for cmd in commands.indexes
-		output = output + "  - " + cmd + " " + commands[cmd].params_list.join(" ") + ": " + commands[cmd].description + "\n"
+	for cmd in computer_commands.indexes
+		output = output + "  - " + cmd + " " + computer_commands[cmd].params_list.join(" ") + ": " + computer_commands[cmd].description + "\n"
 	end for
-	for cmd in extra_commands.indexes
-		output = output + "  - " + cmd + " " + commands[cmd].params_list.join(" ") + ": " + commands[cmd].description + "\n"
+	for cmd in computer_extra_commands.indexes
+		output = output + "  - " + cmd + " " + computer_extra_commands[cmd].params_list.join(" ") + ": " + computer_extra_commands[cmd].description + "\n"
 	end for
 	return output
 end function
-
-
-str_to_function = function(str, computer, params_list)
-	// Converts a string to a function reference
-	if str == "_active_net_card" then return _active_net_card(computer, params_list)
-	if str == "_ls_computer" then return _ls_computer(computer, params_list)
-	if str == "_change_password" then return _change_password(computer, params_list)
-	if str == "_close_program" then return _close_program(computer, params_list)
-	if str == "_connect_ethernet" then return _connect_ethernet(computer, params_list)
-	if str == "_connect_wifi" then return _connect_wifi(computer, params_list)
-	if str == "_create_folder" then return _create_folder(computer, params_list)
-	if str == "_create_group" then return _create_group(computer, params_list)
-	if str == "_create_user" then return _create_user(computer, params_list)
-	if str == "_delete_group" then return _delete_group(computer, params_list)
-	if str == "_delete_user" then return _delete_user(computer, params_list)
-	if str == "_get_name" then return _get_name(computer, params_list)
-	if str == "_get_ports" then return _get_ports(computer, params_list)
-	if str == "_groups" then return _groups(computer, params_list)
-	if str == "_is_network_active" then return _is_network_active(computer, params_list)
-	if str == "_local_ip" then return _local_ip(computer, params_list)
-	if str == "_network_devices" then return _network_devices(computer, params_list)
-	if str == "_public_ip" then return _public_ip(computer, params_list)
-	if str == "_show_procs" then return _show_procs(computer, params_list)
-	if str == "_touch" then return _touch(computer, params_list)
-	if str == "_wifi_networks" then return _wifi_networks(computer, params_list)
-	if str == "_file" then return _file(computer, params_list)
-
-	return null // If no match found, returns null
-end function
-
 
 computer_connection = function(computer)
 	// Receives a Computer object and allows dynamically running methods in that class from the terminal
@@ -331,19 +306,19 @@ computer_connection = function(computer)
 
 		if func == "exit" then return
 		if func == "help" or func == "h" then
-			output = _help(file, params_list)
+			output = _help(computer, params_list)
 			print(output)
 			continue
 		end if
 
-		if commands.hasIndex(func) then
-			command_info = commands[func]
+		if computer_commands.hasIndex(func) then
+			command_info = computer_commands[func]
 			if params_list.len != command_info.params_list.len then
 				output = "Error: Invalid number of parameters for " + func + "\nUsage: " + func + " " + command_info.params_list.join(" ")
 			else
-				output = str_to_function(command_info.func, computer, params_list)
+				output = command_info.func(computer, params_list)
 			end if
-		else if not extra_commands.hasIndex(func) then
+		else if not computer_extra_commands.hasIndex(func) then
 			output = "Error: Command '" + func + "' not found."
 		end if
 		

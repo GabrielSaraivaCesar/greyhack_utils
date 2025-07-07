@@ -1,18 +1,24 @@
 // mem_overflow
 // This script performs a memory overflow attack on a remote or local computer.
     
-import_code("/Tools/src/srm_lib/params.src")
-import_code("/Tools/src/srm_lib/metaxploit.src")
-import_code("/Tools/src/srm_lib/computer_explorer.src")
-import_code("/Tools/src/srm_lib/file_explorer.src")
-import_code("/Tools/src/srm_lib/lib_scan/lib_scan_utils.src")
+import_code("/Tools/src/crash_lib/utils/argparse.src")
+import_code("/Tools/src/crash_lib/utils/metaxploit.src")
+import_code("/Tools/src/crash_lib/utils/computer_explorer.src")
+import_code("/Tools/src/crash_lib/utils/file_explorer.src")
+import_code("/Tools/src/crash_lib/lib_scan/lib_scan_utils.src")
+import_code("/Tools/src/crash_lib/utils/crash_utils.src")
+crypto = include_lib("/lib/crypto.so")
 
-add_param("ip_address or -l", true, false, "Either the IP address of the remote computer or the tag -l to use a local library")
-add_param("port or lib", true, false, "Either the port to connect to the remote computer or the library file to use locally")
-add_param("memory_addr", true, false, "The memory address to overflow")
-add_param("unsec_value", true, false, "The unsecure value to write in the memory address")
-add_param("-a", false, false, "The extra arguments to pass to the overflow function (optional)")
-handle_help()
+params_definition = [
+	{"name": "ip_address or -l", "flag":null, "flag_alt": null, "type":"str",  "default":null,}, 
+	{"name": "port or lib", "flag":null, "flag_alt": null, "type":"str",  "default":null,}, 
+	{"name": "memory_addr", "flag":null, "flag_alt": null, "type":"str",  "default":null,}, 
+	{"name": "unsec_value", "flag":null, "flag_alt": null, "type":"str",  "default":null,}, 
+	{"name": "args", "flag":"--args", "flag_alt": "-a", "type":"str",  "default":"",}, 
+]
+
+params_map = parse_args(params, params_definition)
+handle_help(params, params_definition, "Scan remote library for vulnerabilities")
 
 // Parse parameters
 lib_path = params_map["port or lib"]
@@ -23,7 +29,7 @@ if address != "-l" then
 end if
 memory_zone = params_map.memory_addr
 unsec_val = params_map.unsec_value
-extra_args = params_map["-a"]
+extra_args = params_map.args
 
 
 metaLib = null
@@ -71,6 +77,25 @@ if typeof(result) == "shell" or typeof(result) == "file" or typeof(result) == "c
 		end if
 	end if
 	make_vuln_data_row(metaLib, memory_zone, unsec_val, "", typeof(result), access_level)
+else if typeof(result) == "string" or typeof(result) == "number" then
+	old_vuln_data = find_vuln_data(metaLib, memory_zone, unsec_val)
+	access_type = ""
+	
+	if old_vuln_data != null then
+		access_type = old_vuln_data.type
+	end if
+	if access_type == "" then
+		print()
+		access_type_in = user_input("Please manually update the exploit type for this vulnerability in the database (""p""/""passwd"")/(""f""/""firewall""): ").upper
+		if access_type_in == "P" or access_type_in == "PASSWD" then
+			access_type = "passwd"
+		else if access_type_in == "F" or access_type_in == "FIREWALL" then
+			access_type = "firewall"
+		else
+			exit("Invalid access type input. Exiting.")
+		end if
+	end if
+	make_vuln_data_row(metaLib, memory_zone, unsec_val, "", access_type, "")
 end if
 
 if typeof(result) == "shell" then

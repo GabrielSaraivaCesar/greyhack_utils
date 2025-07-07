@@ -1,5 +1,5 @@
 get_user_input = function(user_slot=null, custom_slot_values=[])
-	val = "<pos=04>——[<b><color=red>SRM</color></b>]{custom_slot}<voffset=-0.5em><pos=00>|<voffset=-1em><space=-0.6em>|<voffset=-1.5em><pos=04>——[{user_slot}]:~ "
+	val = "<pos=04>——[<b><color=red>C.R.A.S.H</color></b>]{custom_slot}<voffset=-0.5em><pos=00>|<voffset=-1em><space=-0.6em>|<voffset=-1.5em><pos=04>——:~ "
 	if user_slot != null then
         val = val.replace("{user_slot}", user_slot)
     else

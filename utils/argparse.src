@@ -1,0 +1,145 @@
+parse_args = function(args, definitions)
+	parsed = {}
+	i = 0
+	pos_index = 0
+    
+	// Fill in defaults
+	for def in definitions
+		if parsed.indexOf(def.name) == null then
+			if def.default != null then
+				parsed[def.name] = def.default
+			else if def.type == "bool" then
+				parsed[def.name] = false
+			end if
+		end if
+	end for
+
+    positional_args = []
+    optional_args = []
+    for def in definitions
+        if def.flag == null then
+            positional_args.push(def.name)
+        end if
+        if def.flag != null and def.flag_alt != null then
+            optional_args.push(def)
+        end if
+    end for
+
+    if positional_args.len > 0 then
+        for arg_index in range(0, positional_args.len-1)
+            if args.len < arg_index + 1 then
+                return null
+            else
+                parsed[positional_args[arg_index]] = args[arg_index]
+            end if
+        end for
+    end if
+
+    for opt_arg in optional_args
+        if opt_arg.type == "bool" and (args.indexOf(opt_arg.flag) != null or args.indexOf(opt_arg.flag_alt) != null) then
+            parsed[opt_arg.name] = true
+        else if opt_arg.type != "bool" and (args.indexOf(opt_arg.flag) != null or args.indexOf(opt_arg.flag_alt) != null)  then
+            index = args.indexOf(opt_arg.flag)
+            if index == null then
+                index = args.indexOf(opt_arg.flag_alt)
+            end if
+            
+            if args.len <= index + 1 then
+                return null
+            end if
+            parsed[opt_arg.name] = args[index + 1]
+
+        end if
+    end for
+
+	return parsed
+end function
+
+
+print_help = function(definitions, description)
+	print(description + "\n")
+	print("Arguments:")
+
+	for def in definitions
+		line = "  "
+		if def.flag != null or def.flag_alt != null then
+			if def.flag != null then
+				line = line + def.flag
+			end if
+			if def.flag_alt != null then
+				if def.flag != null then
+					line = line + ", " + def.flag_alt
+				else
+					line = line + def.flag_alt
+				end if
+			end if
+			line = line + " "
+		else
+			line = line + "[positional] "
+		end if
+
+		line = line + def.name + " : " + def.type
+
+		if def.default != null and not (def.type == "bool" and def.default == false) then
+			line = line + " [default: " + def.default + "]"
+		end if
+
+		print(line)
+	end for
+end function
+
+
+handle_help = function(params, definitions, description)
+	i = 0
+	pos_index = 0
+
+	while i < params.len
+		arg = params[i]
+
+		// Show help immediately if -h or --help is found
+		if arg == "-h" or arg == "--help" then
+			print_help(definitions, description)
+			return true
+		end if
+
+		matched = false
+
+		// Match flags
+		for def in definitions
+			if (def.flag != null and def.flag == arg) or (def.flag_alt != null and def.flag_alt == arg) then
+				matched = true
+				if def.type != "bool" then
+					i = i + 1
+					if i >= params.len then
+						print("Missing value for " + arg)
+						print_help(definitions, description)
+						return true
+					end if
+				end if
+				break
+			end if
+		end for
+
+		if not matched then
+			// Match positional
+			while pos_index < definitions.len
+				def = definitions[pos_index]
+				pos_index = pos_index + 1
+				if def.flag == null then
+					matched = true
+					break
+				end if
+			end while
+
+			if not matched then
+				print("Unknown argument: " + arg)
+				print_help(definitions, description)
+				return true
+			end if
+		end if
+
+		i = i + 1
+	end while
+
+	return false
+end function

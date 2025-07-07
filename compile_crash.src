@@ -1,0 +1,47 @@
+compile_ignore = [
+    "readme.md",
+    "computer_explorer.src",
+    "file_explorer.src",
+    "crash_utils.src",
+    "metaxploit.src",
+    "argparse.src",
+    "params.src",
+    "lib_scan_utils.src",
+    "crash_functions",
+    "script_separate.src",
+]
+
+shell = get_shell
+computer = shell.host_computer
+master_folder = computer.File("/Tools/src/crash_lib/")
+
+compile_all_src_in_folder = function(folder)
+    inner_folders = folder.get_folders
+    inner_files = folder.get_files
+    for file in inner_files
+        if compile_ignore.indexOf(file.name) != null then
+            continue // Skip files that are in the ignore list
+        end if
+        
+        if file.name.indexOf(".src") != null then
+            print("Compiling " + file.path + "...")
+
+            f = computer.File("/Tools/custom_bin/"+file.name.replace(".src", ""))
+            if f != null then
+                f.delete()
+            end if
+            result = shell.build(file.path, "/Tools/custom_bin/")
+            if result != "" then
+                exit("Error compiling " + file.path + ": " + result)
+            end if
+        end if
+    end for
+    for inner_folder in inner_folders
+        if compile_ignore.indexOf(inner_folder.name) != null then
+            continue // Skip folders that are in the ignore list
+        end if
+        compile_all_src_in_folder(inner_folder)
+    end for
+end function
+
+compile_all_src_in_folder(master_folder)

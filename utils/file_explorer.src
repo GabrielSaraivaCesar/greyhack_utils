@@ -9,7 +9,7 @@ parse_params_list = function(params_list_list, names)
 	return params_list_map
 end function
 
-_allow_import = function(file)
+_allow_import = function(file, params_list)
 	return file.allow_import
 end function
 	
@@ -27,15 +27,15 @@ _copy = function(file, params_list)
 	return file.copy(params_list.path, params_list.file_new_name)
 end function
 
-_delete = function(file)
+_delete = function(file, params_list)
 	return file.delete()
 end function
 
-_get_content = function(file)
+_get_content = function(file, params_list)
 	return file.get_content()
 end function
 
-_get_folders = function(file)
+_get_folders = function(file, params_list)
 	output = "Folders in " + file.name + ":\n"
 	for inner_folder in file.get_folders
 		output = output + "  - " + inner_folder.name + "/\n"
@@ -44,7 +44,7 @@ _get_folders = function(file)
 	return ""
 end function
 
-_get_files = function(file)
+_get_files = function(file, params_list)
 	output = "Files in " + file.name + ":\n"
 	for inner_file in file.get_files
 		output = output + "  - " + inner_file.name + "\n"
@@ -53,7 +53,7 @@ _get_files = function(file)
 	return ""
 end function
 
-_group = function(file)
+_group = function(file, params_list)
 	return file.group
 end function
 
@@ -62,15 +62,15 @@ _has_permission = function(file, params_list)
 	return file.has_permission(params_list.type_perm)
 end function
 
-_is_binary = function(file)
+_is_binary = function(file, params_list)
 	return file.is_binary
 end function
 
-_is_folder = function(file)
+_is_folder = function(file, params_list)
 	return file.is_folder
 end function
 
-_is_symlink = function(file)
+_is_symlink = function(file, params_list)
 	return file.is_symlink
 end function
 
@@ -79,15 +79,15 @@ _move = function(file, params_list)
 	return file.move(params_list.path, params_list.file_new_name)
 end function
 
-_name = function(file)
+_name = function(file, params_list)
 	return file.name
 end function
 
-_owner = function(file)
+_owner = function(file, params_list)
 	return file.owner
 end function
 
-_parent = function(file)
+_parent = function(file, params_list)
 	return file.parent.name
 end function
 
@@ -99,21 +99,21 @@ _path = function(file, params_list)
 	return file.path(params_list.symlinkOrigPath == "true")
 end function
 
-_permissions = function(file)
+_permissions = function(file, params_list)
 	return file.permissions
 end function
 
-_rename = function(file, params_list)
+_file_rename = function(file, params_list)
 	params_list = parse_params_list(params_list, ["new_name"])
 	return file.rename(params_list.new_name)
 end function
 
-_set_content = function(file, params_list)
+_file_set_content = function(file, params_list)
 	params_list = parse_params_list(params_list, ["text"])
 	return file.set_content(params_list.text)
 end function
 
-_set_group = function(file, params_list)
+_file_set_group = function(file, params_list)
 	if params_list.len == 1 then
 		params_list.push("false")
 	end if
@@ -121,7 +121,7 @@ _set_group = function(file, params_list)
 	return file.set_group(params_list.groupname, params_list.isRecursive == "true")
 end function
 
-_set_owner = function(file, params_list)
+_file_set_owner = function(file, params_list)
 	if params_list.len == 1 then
 		params_list.push("false")
 	end if
@@ -129,11 +129,11 @@ _set_owner = function(file, params_list)
 	return file.set_owner(params_list.ownername, params_list.isRecursive == "true")
 end function
 
-_size = function(file)
+_file_size = function(file, params_list)
 	return file.size
 end function
 	
-_ls_file = function(folder)
+_ls_file = function(folder, params_list)
 	if folder.is_folder == false then
 		return "This is not a folder."
 	end if
@@ -179,7 +179,7 @@ _set_symlink = function(file, params_list)
 	return file.symlink(params_list.path, params_list.file_new_name)
 end function
 
-_cd = function(folder, params_list)
+_file_cd = function(folder, params_list)
 	params_list = parse_params_list(params_list, ["path"])
 	current_file = folder
 	if params_list.path == ".." then
@@ -209,136 +209,185 @@ _cd = function(folder, params_list)
 	return current_file
 end function
 
+_file_decipher = function(file, params_list)
+	if crypto == null then
+		return "Crypto library not found. Please install the crypto library to use this command."
+	end if
+	if file.is_binary then
+		return "This file is binary."
+	end if
+	if file.is_folder then
+		return "This is a folder, not a file."
+	end if
+	
+	content = file.get_content()
+	if content == "" then
+		return "The file is empty."
+	end if
+	if content == null then
+		return "The cannot be read."
+	end if
+	hashes = content.split("\n")
+	if hashes.len == 0 then
+		return "The file is empty."
+	end if
 
-commands = {
+	valid_hashes = []
+	idx = 0
+	for hash_row in hashes
+		if hash_row.trim() == "" then continue
+		if hash_row[0] == "#" then continue // Skip comments
+		if hash_row[0] == "\n" then continue // Skip empty lines
+		valid_hashes.push(hash_row.trim())
+		print("<b>["+idx+"]</b> " + hash_row.trim())
+		idx = idx + 1
+	end for
+
+	choosen_hash_idx = user_input("Enter the index of the hash to decipher: ")
+	if choosen_hash_idx == "" or choosen_hash_idx.to_int >= valid_hashes.len then
+		return "No hash index provided."
+	end if
+
+	choosen_hash = valid_hashes[choosen_hash_idx.to_int]
+	deciphered_content = crypto.decipher(choosen_hash)
+
+	return "Deciphered content: " + deciphered_content
+end function
+
+file_commands = {
 	"ls": {
 		"description": "List files and folders in a directory.",
-		"params_list": ["[path]"],
-		"func": "_ls_file",
+		"params_list": [],
+		"func": @_ls_file,
 	},
 	"allow_import": {
 		"description": "Check if the file allows import.",
 		"params_list": [],
-		"func": "_allow_import",
+		"func": @_allow_import,
 	},
 	"chmod": {
 		"description": "Change file permissions.",
 		"params_list": ["[permissions]", "[isRecursive]"],
-		"func": "_chmod",
+		"func": @_chmod,
 	},
 	"copy": {
 		"description": "Copy the file to a new location.",
 		"params_list": ["[path]", "[file_new_name]"],
-		"func": "_copy",
+		"func": @_copy,
 	},
 	"delete": {
 		"description": "Delete the file.",
 		"params_list": [],
-		"func": "_delete",
+		"func": @_delete,
 	},
 	"get_content": {
 		"description": "Get the content of the file.",
 		"params_list": [],
-		"func": "_get_content",
+		"func": @_get_content,
 	},
 	"get_folders": {
 		"description": "Get folders inside the file.",
 		"params_list": [],
-		"func": "_get_folders",
+		"func": @_get_folders,
 	},
 	"get_files": {
 		"description": "Get files inside the file.",
 		"params_list": [],
-		"func": "_get_files",
+		"func": @_get_files,
 	},
 	"group": {
 		"description": "Get the group of the file.",
 		"params_list": [],
-		"func": "_group",
+		"func": @_group,
 	},
 	"has_permission": {
 		"description": "Check if the file has a specific permission.",
 		"params_list": ["[type_perm]"],
-		"func": "_has_permission",
+		"func": @_has_permission,
 	},
 	"is_binary": {
 		"description": "Check if the file is binary.",
 		"params_list": [],
-		"func": "_is_binary",
+		"func": @_is_binary,
 	},
 	"is_folder": {
 		"description": "Check if the file is a folder.",
 		"params_list": [],
-		"func": "_is_folder",
+		"func": @_is_folder,
 	},
 	"is_symlink": {
 		"description": "Check if the file is a symlink.",
 		"params_list": [],
-		"func": "_is_symlink",
+		"func": @_is_symlink,
 	},
 	"move": {
 		"description": "Move the file to a new location.",
 		"params_list": ["[path]", "[file_new_name]"],
-		"func": "_move",
+		"func": @_move,
 	},
 	"name": {
 		"description": "Get the name of the file.",
 		"params_list": [],
-		"func": "_name",
+		"func": @_name,
 	},
 	"owner": {
 		"description": "Get the owner of the file.",
 		"params_list": [],
-		"func": "_owner",
+		"func": @_owner,
 	},
 	"parent": {
 		"description": "Get the parent folder of the file.",
 		"params_list": [],
-		"func": "_parent",
+		"func": @_parent,
 	},
 	"path": {
 		"description": "Get the path of the file.",
 		"params_list": ["[symlinkOrigPath]"],
-		"func": "_path",
+		"func": @_path,
 	},
 	"permissions": {
 		"description": "Get the permissions of the file.",
 		"params_list": [],
-		"func": "_permissions",
+		"func": @_permissions,
 	},
 	"rename": {
 		"description": "Rename the file.",
 		"params_list": ["[new_name]"],
-		"func": "_rename",
+		"func": @_file_rename,
 	},
 	"set_content": {
 		"description": "Set the content of the file.",
 		"params_list": ["[text]"],
-		"func": "_set_content",
+		"func": @_file_set_content,
 	},
 	"set_group": {
 		"description": "Set the group of the file.",
 		"params_list": ["[groupname]", "[isRecursive]"],
-		"func": "_set_group",
+		"func": @_file_set_group,
 	},
 	"set_owner": {
 		"description": "Set the owner of the file.",
 		"params_list": ["[ownername]", "[isRecursive]"],
-		"func": "_set_owner",
+		"func": @_file_set_owner,
 	},
 	"size": {
 		"description": "Get the size of the file.",
 		"params_list": [],
-		"func": "_size",
+		"func": @_file_size,
 	},
 	"set_symlink": {
 		"description": "Set the file as a symlink.",
 		"params_list": ["[path]", "[file_new_name]"],
-		"func": "_set_symlink",
+		"func": @_set_symlink,
+	},
+	"decipher": {
+		"description": "Decipher hashed content of the file.",
+		"params_list": [],
+		"func": @_file_decipher,
 	},
 }
 
-extra_commands = {
+file_extra_commands = {
 	"cd": {
 		"description": "Change directory to a specified path.",
 		"params_list": ["[path]"],
@@ -357,47 +406,18 @@ extra_commands = {
 	},
 }
 
-_help = function(computer, params_list)
+_file_help = function(computer, params_list)
 	output = "Available commands:\n"
-	for cmd in commands.indexes
-		output = output + "  - " + cmd + " " + commands[cmd].params_list.join(" ") + ": " + commands[cmd].description + "\n"
+	for cmd in file_commands.indexes
+		output = output + "  - " + cmd + " " + file_commands[cmd].params_list.join(" ") + ": " + file_commands[cmd].description + "\n"
 	end for
-	for cmd in extra_commands.indexes
-		output = output + "  - " + cmd + " " + commands[cmd].params_list.join(" ") + ": " + commands[cmd].description + "\n"
+	for cmd in file_extra_commands.indexes
+		output = output + "  - " + cmd + " " + file_extra_commands[cmd].params_list.join(" ") + ": " + file_extra_commands[cmd].description + "\n"
 	end for
 	return output
 end function
 
-str_to_function = function(str, file, params_list)
-	// Converts a string to a function reference
-	if str == "_ls_file" then return _ls_file(file, params_list)
-	if str == "_allow_import" then return _allow_import(file, params_list)
-	if str == "_chmod" then return _chmod(file, params_list)
-	if str == "_copy" then return _copy(file, params_list)
-	if str == "_delete" then return _delete(file, params_list)
-	if str == "_get_content" then return _get_content(file, params_list)
-	if str == "_get_folders" then return _get_folders(file, params_list)
-	if str == "_get_files" then return _get_files(file, params_list)
-	if str == "_group" then return _group(file, params_list)
-	if str == "_has_permission" then return _has_permission(file, params_list)
-	if str == "_is_binary" then return _is_binary(file, params_list)
-	if str == "_is_folder" then return _is_folder(file, params_list)
-	if str == "_is_symlink" then return _is_symlink(file, params_list)
-	if str == "_move" then return _move(file, params_list)
-	if str == "_name" then return _name(file, params_list)
-	if str == "_owner" then return _owner(file, params_list)
-	if str == "_parent" then return _parent(file, params_list)
-	if str == "_path" then return _path(file, params_list)
-	if str == "_permissions" then return _permissions(file, params_list)
-	if str == "_rename" then return _rename(file, params_list)
-	if str == "_set_content" then return _set_content(file, params_list)
-	if str == "_set_group" then return _set_group(file, params_list)
-	if str == "_set_owner" then return _set_owner(file, params_list)
-	if str == "_size" then return _size(file, params_list)
-	if str == "_set_symlink" then return _set_symlink(file, params_list)
-end function
-
-file_connection = function(file)
+file_connection = function(file, params_list)
 	// Receives a File object and allows dynamically running methods in that class from the terminal
 	while true
 		command = get_user_input(null, ["[<b><color=yellow>File</color></b>]", "("+file.path+")"]).split(" ")
@@ -407,23 +427,23 @@ file_connection = function(file)
 		output = ""
 		if func == "exit" then return
 		if func == "cd" then
-			current_folder = _cd(file, params_list)
+			current_folder = _file_cd(file, params_list)
 			return file_connection(current_folder)
 		end if
 		if func == "help" or func == "h" then
-			output = _help(file, params_list)
+			output = _file_help(file, params_list)
 			print(output)
 			continue
 		end if
 
-		if commands.hasIndex(func) then
-			command_info = commands[func]
+		if file_commands.hasIndex(func) then
+			command_info = file_commands[func]
 			if params_list.len != command_info.params_list.len then
 				output = "Error: Invalid number of parameters for " + func + "\nUsage: " + func + " " + command_info.params_list.join(" ")
 			else
-				output = str_to_function(command_info.func, file, params_list)
+				output = command_info.func(file, params_list)
 			end if
-		else if not extra_commands.hasIndex(func) then
+		else if not file_extra_commands.hasIndex(func) then
 			output = "Error: Command '" + func + "' not found."
 		end if
 		

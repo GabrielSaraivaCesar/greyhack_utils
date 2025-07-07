@@ -1,0 +1,86 @@
+
+mem_overflow = function(args)
+        
+    params_definition = [
+        {"name": "ip_address or -l", "flag":null, "flag_alt": null, "type":"str",  "default":null,}, 
+        {"name": "port or lib", "flag":null, "flag_alt": null, "type":"str",  "default":null,}, 
+        {"name": "memory_addr", "flag":null, "flag_alt": null, "type":"str",  "default":null,}, 
+        {"name": "unsec_value", "flag":null, "flag_alt": null, "type":"str",  "default":null,}, 
+        {"name": "args", "flag":"--args", "flag_alt": "-a", "type":"str",  "default":"",}, 
+    ]
+
+    params_map = parse_args(args, params_definition)
+    stop_exec = handle_help(args, params_definition, "Scan library remotelly for vulnerabilities")
+    if stop_exec then
+        return ""
+    end if
+    
+        
+    metaLib = null
+    // Start connection
+    if args.indexOf("-l") == null then
+        // Remote use
+        net_session = metaxploit.net_use( params_map["ip_address or -l"], params_map["port or lib"] )
+        if not net_session then exit("Error: can't connect to net session")
+        metaLib = net_session.dump_lib
+    else
+        // Local use
+        metaLib = metaxploit.load(lib_path)
+        if metaLib == null then
+            metaLib = metaxploit.load(current_path+"/"+lib_path)
+        end if
+        if metaLib == null then
+            metaLib = metaxploit.load("/lib/"+lib_path)
+        end if
+    end if
+    // Overflow
+    result = metaLib.overflow(params_map.memory_addr, params_map.unsec_value, params_map.args)
+
+    if not result then exit("Program ended")
+    print("The overflow resulted in ["+typeof(result)+"]")
+
+    if typeof(result) == "shell" or typeof(result) == "file" or typeof(result) == "computer" then
+        old_vuln_data = find_vuln_data(metaLib, params_map.memory_addr, params_map.unsec_value)
+        access_level = ""
+
+        if old_vuln_data != null then
+            access_level = old_vuln_data.access_level
+        end if
+
+        if access_level == "" then
+            print()
+            access_level_in = user_input("Please manually update the access level for this vulnerability in the database (""r""/""root"")/(""u""/""user"")/(""g""/""guest""): ").upper
+            if access_level_in == "R" or access_level_in == "ROOT" then
+                access_level = "root"
+            else if access_level_in == "U" or access_level_in == "USER" then
+                access_level = "user"
+            else if access_level_in == "G" or access_level_in == "GUEST" then
+                access_level = "guest"
+            else
+                exit("Invalid access level input. Exiting.")
+            end if
+        end if
+        make_vuln_data_row(metaLib, params_map.memory_addr, params_map.unsec_value, "", typeof(result), access_level)
+    end if
+
+    if typeof(result) == "shell" then
+        decision = user_input("Do you want to start a terminal connection? (Y/n): ")
+        if decision == "y" or decision == "Y" or decision == "" then
+            // Start terminal
+            result.start_terminal
+        else
+            print("Exiting without starting a terminal.")
+        end if
+    else if typeof(result) == "file" then
+        // Handle file connection
+        print("Got file. Path: " + result.path())
+        file_connection(result)
+    else if typeof(result) == "computer" then
+        // Handle computer connection
+        print("Got computer. Name: " + result.get_name)
+        computer_connection(result)
+    else if result != 1 then
+        print("Error: expected shell, obtained: " + result)
+    end if
+
+end function

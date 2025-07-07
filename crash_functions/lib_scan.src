@@ -1,0 +1,65 @@
+lib_scan = function(args)
+    params_definition = [
+        {"name": "lib_file", "flag":null, "flag_alt": null, "type":"str",  "default":null,}, 
+        {"name":"output",   "flag":"--output",  "flag_alt":"-o",  "type":"bool",  "default":false,},
+        {"name":"cache", "flag":"--cache", "flag_alt":"-c",  "type":"bool", "default": false,},
+    ]
+
+    params_map = parse_args(args, params_definition)
+    stop_exec = handle_help(args, params_definition, "Scan Library for vulnerabilities")
+    if stop_exec then
+        return ""
+    end if
+
+        
+    // Use metaxploit to overflow a specific memory address
+    lib = metaxploit.load(current_path + "/" + params_map.lib_file)
+    if not lib then
+        lib = metaxploit.load(params_map.lib_file)
+    end if
+
+
+    if not lib then
+        exit("Error: Library file not found or invalid.")
+    end if
+
+    if params_map.cache == true then
+        print(get_cached_vuln_data_str(lib))
+    else
+        scan_lib(lib, params_map.output)
+    end if
+
+end function
+
+remote_lib_scan = function(args)
+    params_definition = [
+        {"name": "ip_address", "flag":null, "flag_alt": null, "type":"str",  "default":null,}, 
+        {"name": "port", "flag":null, "flag_alt": null, "type":"str",  "default":null,}, 
+        {"name":"output",   "flag":"--output",  "flag_alt":"-o",  "type":"bool",  "default":false,},
+        {"name":"cache", "flag":"--cache", "flag_alt":"-c",  "type":"bool", "default": false,},
+    ]
+
+    params_map = parse_args(args, params_definition)
+    stop_exec = handle_help(args, params_definition, "Scan library remotelly for vulnerabilities")
+    if stop_exec then
+        return ""
+    end if
+    
+    // Start connection
+    net_session = metaxploit.net_use(params_map.ip_address, params_map.port.to_int)
+    if not net_session then exit("Error: can't connect to net session")
+
+    // Use metaxploit to overflow a specific memory address
+    lib = net_session.dump_lib
+
+    if not lib then
+        exit("Error: Library file not found or invalid.")
+    end if
+
+    if params_map.cache == true then
+        print(get_cached_vuln_data_str(lib))
+    else
+        scan_lib(lib, params_map.output)
+    end if
+
+end function
