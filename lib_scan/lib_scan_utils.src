@@ -7,7 +7,7 @@ nl = "
 run_scanner = function(lib, memory_zone)
 	output = metaxploit.scan_address(lib, memory_zone)
 	vulnerabilities = output.split("\n\n")
-	
+	full_vuln_data = []
 	for vuln in vulnerabilities
 		var_from = vuln.indexOf("<b>")
 		var_to = vuln.indexOf("</b>")
@@ -32,14 +32,14 @@ run_scanner = function(lib, memory_zone)
 			end for
 		end if
 		
-		make_vuln_data_row(lib, memory_zone, var_code, conditions_list.join("{nl_slot}"), "", "")
+		new_data = make_vuln_data_row(lib, memory_zone, var_code, conditions_list.join("{nl_slot}"), "", "")
+		full_vuln_data.push(new_data)
 	end for
-	
+
+	return full_vuln_data
 end function
 
-get_cached_vuln_data_str = function(lib)
-	
-	data = _get_vuln_data() // Ensure the vuln_data is filled before printing
+get_data_str = function(data)
 	all_rows = []
 	for row in data
 		if row.lib == lib.lib_name+"v"+lib.version then
@@ -77,14 +77,22 @@ get_cached_vuln_data_str = function(lib)
 	return full_str
 end function
 
+get_cached_vuln_data_str = function(lib)
+	data = _get_vuln_data() // Ensure the vuln_data is filled before printing
+	return get_data_str(data)
+end function
+
 scan_lib = function(lib, should_generate_file=false)
 	memory_zones = metaxploit.scan(lib)
-
+	full_data = []
 	for zone in memory_zones
-    	run_scanner(lib, zone)
+    	data_for_the_zone = run_scanner(lib, zone)
+		for row in data_for_the_zone
+			full_data.push(row)
+		end for
     end for
 	
-	full_output = get_cached_vuln_data_str(lib)
+	full_output = get_data_str(full_data)
 	print(full_output)
 	
 	if should_generate_file then
